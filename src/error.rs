@@ -4,26 +4,37 @@ use trackable::error::{Failure, TrackableError};
 /// This crate specific `Error` type.
 #[derive(Debug, Clone, TrackableError)]
 pub struct Error(TrackableError<ErrorKind>);
+
 impl From<Failure> for Error {
     fn from(f: Failure) -> Self {
         ErrorKind::Other.takes_over(f).into()
     }
 }
+
 impl From<std::io::Error> for Error {
     fn from(f: std::io::Error) -> Self {
         ErrorKind::IoError.cause(f).into()
     }
 }
+
 impl From<std::fmt::Error> for Error {
     fn from(f: std::fmt::Error) -> Self {
         ErrorKind::InvalidInput.cause(f).into()
     }
 }
+
 impl From<std::num::ParseIntError> for Error {
     fn from(f: std::num::ParseIntError) -> Self {
         ErrorKind::InvalidInput.cause(f).into()
     }
 }
+
+impl From<std::num::ParseFloatError> for Error {
+    fn from(f: std::num::ParseFloatError) -> Self {
+        ErrorKind::InvalidInput.cause(f).into()
+    }
+}
+
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(f: std::sync::PoisonError<T>) -> Self {
         ErrorKind::Other.cause(f.to_string()).into()

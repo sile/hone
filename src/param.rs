@@ -91,6 +91,7 @@ pub enum ValueOpt {
     Float { low: f64, high: f64 }, // TODO: fix field, ln flag
     Int { low: i64, high: i64 },   // TODO: fix field
     // TODO: Seq(Vec<f64>)
+    // TODO: Num(low,high,ln,round)
     Choice { choices: Vec<String> }, // TODO: fix field
 }
 
