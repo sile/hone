@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 pub type ParamValue = f64;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Param {
     pub name: String,
     pub distribution: Distribution,
@@ -15,13 +16,15 @@ impl Param {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum Distribution {
     Uniform,
     LogUniform { base: f64 },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum Range {
     Continuous { low: f64, high: f64 },
     Discrete { low: i64, high: i64 },

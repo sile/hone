@@ -9,5 +9,6 @@ publish = false
 
 [dependencies]
 rand = "0.7"
+serde = { version="1", features=["derive"] }
 structopt = "0.3"
 trackable = "0.2"

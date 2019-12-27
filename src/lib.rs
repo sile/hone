@@ -3,6 +3,7 @@ extern crate trackable;
 
 pub use self::error::{Error, ErrorKind};
 
+pub mod history;
 pub mod obs;
 pub mod param;
 pub mod samplers;
