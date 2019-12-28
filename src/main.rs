@@ -1,22 +1,27 @@
 #[macro_use]
 extern crate trackable;
 
+use hone::init;
 use hone::param::ParamOpt;
 use hone::samplers::{RandomSampler, Sampler as _};
-use hone::Error;
-use std::io::{self, BufRead as _};
+use std::io;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 #[structopt(rename_all = "kebab-case")]
 enum Opt {
-    Param(ParamOpt),
-    Observe, // TODO: regex, etc
+    Init(init::InitOpt),
+    Param(ParamOpt),                    // TODO: get or sample etc
+    Observe(hone::observe::ObserveOpt), // TODO: regex, etc
 }
 
 fn main() -> trackable::result::TopLevelResult {
     let opt = Opt::from_args();
     match opt {
+        Opt::Init(opt) => {
+            let initializer = init::Initializer::new(opt);
+            track!(initializer.init())?;
+        }
         Opt::Param(opt) => {
             // TODO: load history
             // TODO: resample or reuse
@@ -25,18 +30,12 @@ fn main() -> trackable::result::TopLevelResult {
             let value = track!(sampler.sample(&param, &[]))?;
             println!("{}", param.repr(value));
         }
-        Opt::Observe => {
+        Opt::Observe(opt) => {
             let stdin = io::stdin();
-            let mut stdin = stdin.lock();
-            let mut line = String::new();
-            let mut last_line = String::new();
-            while 0 != track!(stdin.read_line(&mut line).map_err(Error::from))? {
-                print!("{}", line);
-                last_line = line.clone();
-                line.clear();
-            }
-            let value: f64 = track!(last_line.trim().parse().map_err(Error::from))?;
-            println!("[VALUE]: {}", value); // TODO
+            let source = stdin.lock();
+            let config = track!(hone::config::Config::load_from_default_file())?;
+            let mut observer = hone::observe::Observer::new(source, config, opt);
+            track!(observer.observe())?;
         }
     }
     Ok(())

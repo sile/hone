@@ -1,3 +1,4 @@
+use serde_json;
 use trackable::error::{ErrorKind as TrackableErrorKind, ErrorKindExt};
 use trackable::error::{Failure, TrackableError};
 
@@ -41,6 +42,16 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
     }
 }
 
+impl From<serde_json::error::Error> for Error {
+    fn from(f: serde_json::error::Error) -> Self {
+        if let serde_json::error::Category::Io = f.classify() {
+            ErrorKind::IoError.cause(f).into()
+        } else {
+            ErrorKind::InvalidInput.cause(f).into()
+        }
+    }
+}
+
 /// Possible error kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ErrorKind {
@@ -56,4 +67,5 @@ pub enum ErrorKind {
     /// Other error.
     Other,
 }
+
 impl TrackableErrorKind for ErrorKind {}

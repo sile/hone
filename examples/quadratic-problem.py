@@ -14,4 +14,4 @@ args = parser.parse_args()
 x = args.x
 y = args.y
 
-print(x**2 + y)
+print('HONE:{}'.format(x**2 + y))
