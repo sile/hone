@@ -4,12 +4,15 @@ extern crate trackable;
 pub use self::error::{Error, ErrorKind};
 
 pub mod config;
-pub mod history;
 pub mod init;
-pub mod obs;
-pub mod observe;
-pub mod param;
-pub mod samplers;
+pub mod run;
+pub mod study;
+
+// pub mod history;
+// pub mod obs;
+// pub mod observe;
+// pub mod param;
+// pub mod samplers;
 
 mod error;
 

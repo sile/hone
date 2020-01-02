@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_dir: Option<PathBuf>,
+    // default_sampler, default_pruner
 }
 
 impl Default for Config {

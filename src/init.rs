@@ -33,10 +33,11 @@ impl Initializer {
 
         track!(fs::create_dir_all(&root_dir).map_err(Error::from))?;
 
-        let default_config = Config::default();
-        track!(default_config.save_to_file(root_dir.join(Config::FILE_NAME)))?;
+        let mut config = Config::default();
+        config.data_dir = self.opt.data_dir.clone();
+        track!(config.save_to_file(root_dir.join(Config::FILE_NAME)))?;
 
-        println!("Initialized Hone directory in {:?}", root_dir);
+        eprintln!("Initialized Hone directory in {:?}", root_dir);
         Ok(())
     }
 }
