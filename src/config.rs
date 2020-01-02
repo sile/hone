@@ -1,26 +1,38 @@
-use crate::{Error, Result};
+use crate::{Error, ErrorKind, Result};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::env;
 use std::fs::File;
-use std::path::Path;
-use uuid::Uuid;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Config {
-    // TODO: delete or rename to "default_thread_id" ?
-    pub id: Uuid,
-    // TODO: shared_dir, local_dir
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_dir: Option<PathBuf>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self { data_dir: None }
+    }
 }
 
 impl Config {
-    pub fn thread_id(&self) -> String {
-        env::var("HONE_THREAD_ID").unwrap_or_else(|_| self.id.to_string().clone())
-    }
+    pub const FILE_NAME: &'static str = "config.json";
+    pub const FILE_PATH: &'static str = ".hone/config.json";
 
-    pub fn load_from_default_file() -> Result<Self> {
-        track!(Self::load_from_file(".hone/config.json"))
+    pub fn lookup_path() -> Result<PathBuf> {
+        let current_dir = track!(env::current_dir().map_err(Error::from))?;
+        let mut dir = current_dir.as_path();
+        loop {
+            let path = dir.join(Self::FILE_PATH);
+            if path.exists() {
+                return Ok(path);
+            }
+
+            dir = track_assert_some!(dir.parent(), ErrorKind::InvalidInput);
+        }
     }
 
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -33,11 +45,5 @@ impl Config {
         let file = track!(File::create(path).map_err(Error::from))?;
         track!(serde_json::to_writer_pretty(file, self).map_err(Error::from))?;
         Ok(())
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self { id: Uuid::new_v4() }
     }
 }

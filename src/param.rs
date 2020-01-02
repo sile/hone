@@ -74,6 +74,7 @@ pub struct ParamOpt {
     #[structopt(long)]
     pub resample: bool,
 
+    // TOOD: Change to `Option<ValueOpt>` to allow refering already sampled parameters
     #[structopt(subcommand)]
     pub value: ValueOpt,
 }

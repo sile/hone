@@ -12,6 +12,7 @@ const OBS_DIR: &str = ".hone/observations/";
 #[derive(Debug, StructOpt)]
 pub struct ObserveOpt {
     // paththrough: bool
+// show: bool (print params and last value)
 }
 
 #[derive(Debug)]
@@ -65,15 +66,16 @@ struct Observation {
 
 impl Observation {
     pub fn new<P: AsRef<Path>>(path: P, config: &Config) -> Result<Self> {
-        let working_dir = path.as_ref().join(config.thread_id()).join("current/");
-        track!(fs::create_dir_all(&working_dir).map_err(Error::from))?;
+        // let working_dir = path.as_ref().join(config.thread_id()).join("current/");
+        // track!(fs::create_dir_all(&working_dir).map_err(Error::from))?;
 
-        let file = track!(OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(working_dir.join("values.json"))
-            .map_err(Error::from))?;
-        Ok(Self { file, working_dir })
+        // let file = track!(OpenOptions::new()
+        //     .write(true)
+        //     .create_new(true)
+        //     .open(working_dir.join("values.json"))
+        //     .map_err(Error::from))?;
+        // Ok(Self { file, working_dir })
+        panic!()
     }
 
     pub fn record(&mut self, values: &[f64]) -> Result<()> {
