@@ -1,3 +1,4 @@
+use crate::metric::Metric;
 use crate::param::{Param, ParamSpec, ParamValue};
 use crate::{Error, ErrorKind, Result};
 use rand::seq::SliceRandom as _;
@@ -53,6 +54,16 @@ impl StudyClient {
         } else {
             track_panic!(ErrorKind::InvalidInput, "Unexpected message: {:?}", message)
         }
+    }
+
+    pub fn report(&self, step: Option<NonZeroU64>, metric: Metric) -> Result<()> {
+        let message = Message::ReportCast { step, metric };
+        let message = track!(serde_json::to_vec(&message).map_err(Error::from))?;
+        track!(self
+            .socket
+            .send_to(&message[..], self.server)
+            .map_err(Error::from))?;
+        Ok(())
     }
 }
 
@@ -148,7 +159,11 @@ impl StudyServer {
             Message::SuggestReply { .. } => {
                 track_panic!(ErrorKind::Bug, "Unexpected message: {:?}", message)
             }
-            Message::ReportCast { .. } => todo!("{:?}", message),
+            Message::ReportCast { step, metric } => {
+                // TODO
+                eprintln!("Reported: step={:?}, metric={:?}", step, metric);
+                Ok(None)
+            }
         }
     }
 
@@ -220,22 +235,7 @@ enum Message {
         value: ParamValue,
     },
     ReportCast {
-        step: NonZeroU64,
-        metrics: Vec<Metric>,
+        step: Option<NonZeroU64>,
+        metric: Metric,
     },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct Metric {
-    pub name: String,
-    pub direction: Direction,
-    pub value: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum Direction {
-    Minimize,
-    Maximize,
 }

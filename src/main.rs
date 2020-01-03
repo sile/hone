@@ -16,7 +16,8 @@ enum Opt {
     Run(run::RunOpt),
     // Define
     Get(hone::get::GetOpt),
-    // Report, Watch, Show, Studies, Trials
+    Report(hone::report::ReportOpt),
+    // Watch, Show, Studies, Trials
 }
 
 fn main() -> trackable::result::TopLevelResult {
@@ -36,6 +37,10 @@ fn main() -> trackable::result::TopLevelResult {
             let getter = track!(hone::get::Getter::new(opt))?;
             let value = track!(getter.get())?;
             println!("{}", value);
+        }
+        Opt::Report(opt) => {
+            let reporter = track!(hone::report::Reporter::new(opt))?;
+            track!(reporter.report())?;
         }
     }
     Ok(())
