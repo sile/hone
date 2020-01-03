@@ -14,15 +14,9 @@ use structopt::StructOpt;
 enum Opt {
     Init(init::InitOpt),
     Run(run::RunOpt),
-    //  Get(Sample,Suggest), Report, Watch, Show, Studies, Trials
-
-    // Get(ParamOpt), // or Sample
-    // Config(..), get|set
-    // Prune(..) or EarlyStop
-    // Report {step: ..., values: [{"name": "foo", "minimize":true, value:10}]} | float
-    // New Study|Thread
-    // Switch Study|Thread
-    // Observe(hone::observe::ObserveOpt), // TODO: regex, etc
+    // Define
+    Get(hone::get::GetOpt),
+    // Report, Watch, Show, Studies, Trials
 }
 
 fn main() -> trackable::result::TopLevelResult {
@@ -37,23 +31,12 @@ fn main() -> trackable::result::TopLevelResult {
             let config = track!(config::Config::load_from_file(config_path))?;
             let runner = track!(run::Runner::new(opt, config))?;
             track!(runner.run())?;
-        } // Opt::Get(_opt) => {
-          //     // let config = track!(hone::config::Config::load_from_default_file())?;
-
-          //     // // TODO: load history
-          //     // // TODO: resample or reuse
-          //     // let mut sampler = RandomSampler::new();
-          //     // let param = opt.to_param();
-          //     // let value = track!(sampler.sample(&param, &[]))?;
-          //     // println!("{}", param.repr(value));
-          // }
-          // Opt::Observe(_opt) => {
-          //     // let stdin = io::stdin();
-          //     // let source = stdin.lock();
-          //     // let config = track!(hone::config::Config::load_from_default_file())?;
-          //     // let mut observer = hone::observe::Observer::new(source, config, opt);
-          //     // track!(observer.observe())?;
-          // }
+        }
+        Opt::Get(opt) => {
+            let getter = track!(hone::get::Getter::new(opt))?;
+            let value = track!(getter.get())?;
+            println!("{}", value);
+        }
     }
     Ok(())
 }

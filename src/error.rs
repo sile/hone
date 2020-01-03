@@ -1,4 +1,3 @@
-use serde_json;
 use trackable::error::{ErrorKind as TrackableErrorKind, ErrorKindExt};
 use trackable::error::{Failure, TrackableError};
 
@@ -39,6 +38,24 @@ impl From<std::num::ParseFloatError> for Error {
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(f: std::sync::PoisonError<T>) -> Self {
         ErrorKind::Other.cause(f.to_string()).into()
+    }
+}
+
+impl From<std::sync::mpsc::RecvError> for Error {
+    fn from(f: std::sync::mpsc::RecvError) -> Self {
+        ErrorKind::Other.cause(f).into()
+    }
+}
+
+impl From<std::env::VarError> for Error {
+    fn from(f: std::env::VarError) -> Self {
+        ErrorKind::Other.cause(f).into()
+    }
+}
+
+impl From<std::net::AddrParseError> for Error {
+    fn from(f: std::net::AddrParseError) -> Self {
+        ErrorKind::Other.cause(f).into()
     }
 }
 

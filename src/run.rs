@@ -2,6 +2,8 @@ use crate::config::Config;
 use crate::study::StudyServer;
 use crate::{Error, ErrorKind, Result};
 use std::env;
+use std::mem;
+use std::process::Command;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -47,7 +49,19 @@ impl Runner {
         let server_addr = track!(study.addr())?;
         eprintln!("Server Address: {}", server_addr);
 
-        let _handle = study.spawn();
+        let handle = study.spawn();
+
+        let trial = track!(handle.start_trial())?;
+
+        // TODO: kill child process when crached.
+        let mut child = track!(Command::new(&self.opt.command)
+            .args(&self.opt.args)
+            .spawn()
+            .map_err(Error::from))?;
+        eprintln!("Spawn child process(pid={})", child.id());
+        let status = track!(child.wait().map_err(Error::from))?;
+        eprintln!("Child process finished: {:?}", status);
+        mem::drop(trial);
 
         Ok(())
     }
