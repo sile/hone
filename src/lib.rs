@@ -5,6 +5,7 @@ pub use self::error::{Error, ErrorKind};
 
 pub mod config;
 pub mod metric;
+pub mod optimizer;
 pub mod param;
 pub mod pubsub;
 pub mod study;
@@ -15,8 +16,6 @@ pub mod get;
 pub mod init;
 pub mod report;
 pub mod run;
-
-// pub mod samplers;
 
 mod error;
 

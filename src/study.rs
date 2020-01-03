@@ -1,4 +1,5 @@
 use crate::metric::Metric;
+use crate::optimizer::Optimizer;
 use crate::param::{Param, ParamSpec, ParamValue};
 use crate::pubsub::{PubSub, PubSubChannel, TrialAction};
 use crate::trial::Trial;
@@ -77,6 +78,7 @@ pub struct StudyServer {
     pubsub: PubSubChannel,
     trials: HashMap<Uuid, Trial>,
     current_trial: Option<Trial>,
+    //    optimizer: Box<dyn 'static + Optimizer + Send>,
     rx: Receiver<Command>,
     tx: Option<Sender<Command>>,
 }
