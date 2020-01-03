@@ -5,9 +5,6 @@ use hone::config;
 use hone::init;
 use hone::run;
 use structopt::StructOpt;
-// use hone::param::ParamOpt;
-// use hone::samplers::{RandomSampler, Sampler as _};
-// use std::io;
 
 #[derive(StructOpt, Debug)]
 #[structopt(rename_all = "kebab-case")]
@@ -17,7 +14,7 @@ enum Opt {
     // Define
     Get(hone::get::GetOpt),
     Report(hone::report::ReportOpt),
-    // Watch, Show, Studies, Trials
+    // Watch, Studies, Trials
 }
 
 fn main() -> trackable::result::TopLevelResult {

@@ -1,9 +1,12 @@
 use crate::metric::Metric;
 use crate::param::{Param, ParamSpec, ParamValue};
+use crate::pubsub::{PubSub, PubSubChannel, TrialAction};
+use crate::trial::Trial;
 use crate::{Error, ErrorKind, Result};
 use rand::seq::SliceRandom as _;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::collections::HashMap;
 use std::env;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
@@ -71,21 +74,28 @@ impl StudyClient {
 pub struct StudyServer {
     study_name: String,
     socket: UdpSocket,
+    pubsub: PubSubChannel,
+    trials: HashMap<Uuid, Trial>,
+    current_trial: Option<Trial>,
     rx: Receiver<Command>,
     tx: Option<Sender<Command>>,
 }
 
 impl StudyServer {
-    pub fn new(study_name: String) -> Result<Self> {
+    pub fn new(study_name: String, mut pubsub: PubSub) -> Result<Self> {
         let socket = track!(UdpSocket::bind("127.0.0.1:0").map_err(Error::from))?;
         track!(socket
             .set_read_timeout(Some(Duration::from_millis(100)))
             .map_err(Error::from))?;
 
+        let pubsub_channel = track!(pubsub.channel(&study_name))?;
         let (tx, rx) = mpsc::channel();
         let this = Self {
             study_name,
             socket,
+            pubsub: pubsub_channel,
+            trials: HashMap::new(),
+            current_trial: None,
             rx,
             tx: Some(tx),
         };
@@ -104,21 +114,54 @@ impl StudyServer {
 
     pub fn spawn(mut self) -> StudyServerHandle {
         let tx = self.tx.take().unwrap_or_else(|| unreachable!());
-        thread::spawn(move || self.run());
+        thread::spawn(move || {
+            if let Err(e) = track!(self.run()) {
+                eprintln!("Study Server Error: {}", e);
+            }
+        });
         StudyServerHandle { tx }
     }
 
-    fn run(mut self) {
-        loop {
-            match self.run_once() {
-                Ok(true) => {}
-                Ok(false) => break,
-                Err(e) => {
-                    eprintln!("Study Server Error: {}", e);
-                    break;
-                }
-            }
+    fn run(mut self) -> Result<()> {
+        track!(self.sync())?;
+        while track!(self.run_once())? {}
+        Ok(())
+    }
+
+    fn sync(&mut self) -> Result<()> {
+        for (id, action) in track!(self.pubsub.poll())? {
+            track!(self.handle_action(id, action))?;
         }
+        Ok(())
+    }
+
+    fn handle_action(&mut self, id: Uuid, action: TrialAction) -> Result<()> {
+        match action {
+            TrialAction::Start { id, timestamp } => {
+                let trial = Trial {
+                    id,
+                    timestamp,
+                    ..track!(Trial::new())?
+                };
+                self.trials.insert(trial.id, trial);
+            }
+            TrialAction::Define { param } => {
+                let trial = track_assert_some!(self.trials.get_mut(&id), ErrorKind::InvalidInput);
+                trial
+                    .param_specs
+                    .insert(param.name.clone(), param.spec.clone());
+            }
+            TrialAction::Sample { name, value } => {
+                let trial = track_assert_some!(self.trials.get_mut(&id), ErrorKind::InvalidInput);
+                trial.param_values.insert(name, value);
+            }
+            TrialAction::Report { step, metric } => {
+                let trial = track_assert_some!(self.trials.get_mut(&id), ErrorKind::InvalidInput);
+                trial.report(Some(step), &metric);
+            }
+            TrialAction::End => {}
+        }
+        Ok(())
     }
 
     fn run_once(&mut self) -> Result<bool> {
@@ -145,7 +188,10 @@ impl StudyServer {
                 track!(self.handle_command(command))?;
                 Ok(true)
             }
-            Err(mpsc::TryRecvError::Empty) => return Ok(true),
+            Err(mpsc::TryRecvError::Empty) => {
+                track!(self.sync())?;
+                return Ok(true);
+            }
             Err(mpsc::TryRecvError::Disconnected) => return Ok(false),
         }
     }
@@ -160,30 +206,64 @@ impl StudyServer {
                 track_panic!(ErrorKind::Bug, "Unexpected message: {:?}", message)
             }
             Message::ReportCast { step, metric } => {
-                // TODO
                 eprintln!("Reported: step={:?}, metric={:?}", step, metric);
+                let trial = track_assert_some!(self.current_trial.as_mut(), ErrorKind::Bug);
+                trial.report(step, &metric);
+
+                let step = track_assert_some!(trial.last_step(&metric.name), ErrorKind::Bug);
+                let action = TrialAction::Report { step, metric };
+                track!(self.pubsub.publish(action))?;
+
                 Ok(None)
             }
         }
     }
 
     fn handle_suggest_call(&mut self, param: Param) -> Result<ParamValue> {
+        let trial = track_assert_some!(self.current_trial.as_mut(), ErrorKind::Bug);
+
+        if let Some(value) = trial.param_values.get(&param.name) {
+            return Ok(value.clone());
+        }
+
+        // TODO: check pre-defined parameter
+
         // TODO
         let ParamSpec::Choice { choices } = &param.spec;
         let mut rng = rand::thread_rng();
         let choice = track_assert_some!(choices.choose(&mut rng), ErrorKind::InvalidInput);
         let value = ParamValue(choice.clone());
+
+        track!(self.pubsub.publish(TrialAction::Define {
+            param: param.clone()
+        }))?;
+        track!(self.pubsub.publish(TrialAction::Sample {
+            name: param.name.clone(),
+            value: value.clone()
+        }))?;
+        trial.param_values.insert(param.name.clone(), value.clone());
         Ok(value)
     }
 
     fn handle_command(&mut self, command: Command) -> Result<()> {
         match command {
             Command::StartTrial { reply } => {
-                let trial_id = Uuid::new_v4();
-                let _ = reply.send(trial_id);
+                let trial = track!(Trial::new())?;
+
+                track!(self.pubsub.publish(TrialAction::Start {
+                    id: trial.id,
+                    timestamp: trial.timestamp
+                }))?;
+                let _ = reply.send(trial.id);
+
+                self.current_trial = Some(trial);
                 Ok(())
             }
-            Command::EndTrial => Ok(()),
+            Command::EndTrial => {
+                track!(self.pubsub.publish(TrialAction::End))?;
+                self.current_trial = None;
+                Ok(())
+            }
         }
     }
 }
@@ -194,13 +274,13 @@ pub struct StudyServerHandle {
 }
 
 impl StudyServerHandle {
-    pub fn start_trial(&self) -> Result<Trial> {
+    pub fn start_trial(&self) -> Result<TrialHandle> {
         let (tx, rx) = mpsc::channel();
         let command = Command::StartTrial { reply: tx };
         let _ = self.tx.send(command);
         let id = track!(rx.recv().map_err(Error::from))?;
         env::set_var("HONE_TRIAL_ID", id.to_string());
-        Ok(Trial {
+        Ok(TrialHandle {
             id,
             tx: self.tx.clone(),
         })
@@ -214,12 +294,12 @@ enum Command {
 }
 
 #[derive(Debug)]
-pub struct Trial {
+pub struct TrialHandle {
     id: Uuid,
     tx: Sender<Command>,
 }
 
-impl Drop for Trial {
+impl Drop for TrialHandle {
     fn drop(&mut self) {
         let _ = self.tx.send(Command::EndTrial);
     }

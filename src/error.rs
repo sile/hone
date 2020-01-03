@@ -59,6 +59,12 @@ impl From<std::net::AddrParseError> for Error {
     }
 }
 
+impl From<std::time::SystemTimeError> for Error {
+    fn from(f: std::time::SystemTimeError) -> Self {
+        ErrorKind::Other.cause(f).into()
+    }
+}
+
 impl From<serde_json::error::Error> for Error {
     fn from(f: serde_json::error::Error) -> Self {
         if let serde_json::error::Category::Io = f.classify() {

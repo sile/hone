@@ -23,6 +23,17 @@ impl Config {
     pub const FILE_NAME: &'static str = "config.json";
     pub const FILE_PATH: &'static str = ".hone/config.json";
 
+    pub fn data_dir(&self) -> Result<PathBuf> {
+        // TODO
+        let config_path = track!(Self::lookup_path())?;
+        let config_dir = track_assert_some!(config_path.parent(), ErrorKind::Bug);
+        if let Some(data_dir) = &self.data_dir {
+            Ok(config_dir.join(data_dir))
+        } else {
+            Ok(config_dir.join("data/"))
+        }
+    }
+
     pub fn lookup_path() -> Result<PathBuf> {
         let current_dir = track!(env::current_dir().map_err(Error::from))?;
         let mut dir = current_dir.as_path();
