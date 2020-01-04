@@ -1,13 +1,11 @@
 use crate::metric::Metric;
-use crate::optimizer::Optimizer;
-use crate::param::{Param, ParamSpec, ParamValue};
+use crate::optimizer::{BoxOptimizer, Optimizer};
+use crate::param::{Param, ParamValue};
 use crate::pubsub::{PubSub, PubSubChannel, TrialAction};
 use crate::trial::Trial;
 use crate::{Error, ErrorKind, Result};
-use rand::seq::SliceRandom as _;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::collections::HashMap;
 use std::env;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
@@ -76,15 +74,17 @@ pub struct StudyServer {
     study_name: String,
     socket: UdpSocket,
     pubsub: PubSubChannel,
-    trials: HashMap<Uuid, Trial>,
     current_trial: Option<Trial>,
-    //    optimizer: Box<dyn 'static + Optimizer + Send>,
+    optimizer: BoxOptimizer,
     rx: Receiver<Command>,
     tx: Option<Sender<Command>>,
 }
 
 impl StudyServer {
-    pub fn new(study_name: String, mut pubsub: PubSub) -> Result<Self> {
+    pub fn new<T>(study_name: String, mut pubsub: PubSub, optimizer: T) -> Result<Self>
+    where
+        T: 'static + Optimizer + Send,
+    {
         let socket = track!(UdpSocket::bind("127.0.0.1:0").map_err(Error::from))?;
         track!(socket
             .set_read_timeout(Some(Duration::from_millis(100)))
@@ -96,8 +96,8 @@ impl StudyServer {
             study_name,
             socket,
             pubsub: pubsub_channel,
-            trials: HashMap::new(),
             current_trial: None,
+            optimizer: BoxOptimizer::new(optimizer),
             rx,
             tx: Some(tx),
         };
@@ -138,28 +138,17 @@ impl StudyServer {
     }
 
     fn handle_action(&mut self, id: Uuid, action: TrialAction) -> Result<()> {
+        track!(self.optimizer.tell(id, &action))?;
         match action {
-            TrialAction::Start { id, timestamp } => {
-                let trial = Trial {
-                    id,
-                    timestamp,
-                    ..track!(Trial::new())?
-                };
-                self.trials.insert(trial.id, trial);
-            }
-            TrialAction::Define { param } => {
-                let trial = track_assert_some!(self.trials.get_mut(&id), ErrorKind::InvalidInput);
-                trial
-                    .param_specs
-                    .insert(param.name.clone(), param.spec.clone());
-            }
-            TrialAction::Sample { name, value } => {
-                let trial = track_assert_some!(self.trials.get_mut(&id), ErrorKind::InvalidInput);
-                trial.param_values.insert(name, value);
-            }
-            TrialAction::Report { step, metric } => {
-                let trial = track_assert_some!(self.trials.get_mut(&id), ErrorKind::InvalidInput);
-                trial.report(Some(step), &metric);
+            TrialAction::Start { .. } => {}
+            TrialAction::Define { .. } => {}
+            TrialAction::Sample { .. } => {}
+            TrialAction::Report { .. } => {
+                if self.current_trial.as_ref().map_or(false, |t| t.id == id) {
+                    if track!(self.optimizer.prune(id))? {
+                        todo!("Close StudyHandle");
+                    }
+                }
             }
             TrialAction::End => {}
         }
@@ -214,6 +203,7 @@ impl StudyServer {
 
                 let step = track_assert_some!(trial.last_step(&metric.name), ErrorKind::Bug);
                 let action = TrialAction::Report { step, metric };
+                // TODO: handle_action(action)
                 track!(self.pubsub.publish(action))?;
 
                 Ok(None)
@@ -228,13 +218,8 @@ impl StudyServer {
             return Ok(value.clone());
         }
 
-        // TODO: check pre-defined parameter
-
-        // TODO
-        let ParamSpec::Choice { choices } = &param.spec;
-        let mut rng = rand::thread_rng();
-        let choice = track_assert_some!(choices.choose(&mut rng), ErrorKind::InvalidInput);
-        let value = ParamValue(choice.clone());
+        // TODO: check pre-defined parameter spec
+        let value = track!(self.optimizer.ask(trial.id, &param))?;
 
         track!(self.pubsub.publish(TrialAction::Define {
             param: param.clone()

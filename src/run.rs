@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::optimizer::RandomOptimizer;
 use crate::pubsub::PubSub;
 use crate::study::StudyServer;
 use crate::{Error, Result};
@@ -43,7 +44,11 @@ impl Runner {
 
         let data_dir = track!(self.config.data_dir())?;
         let pubsub = PubSub::new(data_dir);
-        let study = track!(StudyServer::new(self.study_name.clone(), pubsub))?;
+        let study = track!(StudyServer::new(
+            self.study_name.clone(),
+            pubsub,
+            RandomOptimizer::new()
+        ))?;
         let server_addr = track!(study.addr())?;
         eprintln!("Server Address: {}", server_addr);
 
