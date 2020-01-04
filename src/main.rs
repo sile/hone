@@ -4,6 +4,7 @@ extern crate trackable;
 use hone::config;
 use hone::init;
 use hone::run;
+use hone::Error;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -14,7 +15,8 @@ enum Opt {
     // Define
     Get(hone::get::GetOpt),
     Report(hone::report::ReportOpt),
-    // Watch, Studies, Trials
+    Studies(hone::studies::StudiesOpt),
+    // Watch, Trials
 }
 
 fn main() -> trackable::result::TopLevelResult {
@@ -38,6 +40,13 @@ fn main() -> trackable::result::TopLevelResult {
         Opt::Report(opt) => {
             let reporter = track!(hone::report::Reporter::new(opt))?;
             track!(reporter.report())?;
+        }
+        Opt::Studies(opt) => {
+            let config_path = track!(config::Config::lookup_path())?;
+            let config = track!(config::Config::load_from_file(config_path))?;
+            let studies = track!(hone::studies::list_studies(opt, &config))?;
+            let json = track!(serde_json::to_string_pretty(&studies).map_err(Error::from))?;
+            println!("{}", json);
         }
     }
     Ok(())

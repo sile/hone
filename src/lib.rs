@@ -16,6 +16,7 @@ pub mod get;
 pub mod init;
 pub mod report;
 pub mod run;
+pub mod studies;
 
 mod error;
 
