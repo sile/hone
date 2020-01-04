@@ -3,6 +3,7 @@ use crate::param::{ParamSpec, ParamValue};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::num::NonZeroU64;
 use std::time::{Duration, UNIX_EPOCH};
 use uuid::Uuid;
@@ -19,11 +20,16 @@ pub struct Trial {
 
 impl Trial {
     pub fn dominates(&self, other: &Self) -> bool {
-        if !self.metrics.keys().eq(other.metrics.keys()) {
+        let a: HashSet<&str> = self.metrics.keys().map(|x| x.as_str()).collect();
+        let b: HashSet<&str> = other.metrics.keys().map(|x| x.as_str()).collect();
+        if !a.is_superset(&b) {
             return false;
         }
+
+        let intersection: HashSet<&str> = a.intersection(&b).copied().collect();
         self.last_metrics()
-            .zip(other.last_metrics())
+            .filter(|x| intersection.contains(x.0))
+            .zip(other.last_metrics().filter(|x| intersection.contains(x.0)))
             .all(|(a, b)| (a.1 > b.1) || (a.1 == b.1 && a.2 <= b.2))
     }
 
