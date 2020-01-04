@@ -12,6 +12,7 @@ pub mod study;
 pub mod trial;
 
 // commands
+pub mod best;
 pub mod get;
 pub mod init;
 pub mod report;

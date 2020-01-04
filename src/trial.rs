@@ -18,6 +18,24 @@ pub struct Trial {
 }
 
 impl Trial {
+    pub fn dominates(&self, other: &Self) -> bool {
+        if !self.metrics.keys().eq(other.metrics.keys()) {
+            return false;
+        }
+        self.last_metrics()
+            .zip(other.last_metrics())
+            .all(|(a, b)| (a.1 > b.1) || (a.1 == b.1 && a.2 <= b.2))
+    }
+
+    fn last_metrics(&self) -> impl Iterator<Item = (&str, NonZeroU64, f64)> {
+        self.metrics.iter().filter_map(|(name, reports)| {
+            reports
+                .iter()
+                .last()
+                .map(|(&step, &value)| (name.as_str(), step, value))
+        })
+    }
+
     pub fn with_id_and_timestamp(id: Uuid, timestamp: Duration) -> Self {
         Self {
             id,

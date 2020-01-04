@@ -4,6 +4,7 @@ extern crate trackable;
 use hone::config;
 use hone::init;
 use hone::run;
+use hone::trial::Trial;
 use hone::Error;
 use structopt::StructOpt;
 
@@ -17,7 +18,8 @@ enum Opt {
     Report(hone::report::ReportOpt),
     Studies(hone::studies::StudiesOpt),
     Trials(hone::trials::TrialsOpt),
-    // Watch, Pareto-Front, Best, Stats (n_trials,param_num,elapsed_times), Plot
+    Best(hone::best::BestOpt),
+    // Watch,  Stats (n_trials,param_num,elapsed_times), Plot
 }
 
 fn main() -> trackable::result::TopLevelResult {
@@ -54,6 +56,14 @@ fn main() -> trackable::result::TopLevelResult {
             let config = track!(config::Config::load_from_file(config_path))?;
             let trials = track!(hone::trials::list_trials(opt, &config))?;
             let json = track!(serde_json::to_string_pretty(&trials).map_err(Error::from))?;
+            println!("{}", json);
+        }
+        Opt::Best(opt) => {
+            let stdin = std::io::stdin();
+            let trials: Vec<Trial> =
+                track!(serde_json::from_reader(stdin.lock()).map_err(Error::from))?;
+            let pareto_front = hone::best::pareto_front(opt, &trials);
+            let json = track!(serde_json::to_string_pretty(&pareto_front).map_err(Error::from))?;
             println!("{}", json);
         }
     }
