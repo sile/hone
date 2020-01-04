@@ -13,13 +13,13 @@ use structopt::StructOpt;
 enum Opt {
     Init(init::InitOpt),
     Run(run::RunOpt),
-    // Define
+    // Define Param|Metric
     Get(hone::get::GetOpt),
     Report(hone::report::ReportOpt),
     Studies(hone::studies::StudiesOpt),
     Trials(hone::trials::TrialsOpt),
     Best(hone::best::BestOpt),
-    // Watch,  Stats (n_trials,param_num,elapsed_times), Plot
+    // Watch,  Stats (n_trials,param_num,elapsed_times), Plot, Save, Load
 }
 
 fn main() -> trackable::result::TopLevelResult {
