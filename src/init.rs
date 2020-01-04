@@ -37,7 +37,7 @@ impl Initializer {
         config.data_dir = self.opt.data_dir.clone();
         track!(config.save_to_file(root_dir.join(Config::FILE_NAME)))?;
 
-        eprintln!("Initialized Hone directory in {:?}", root_dir);
+        eprintln!("[HONE] Initialized Hone directory in {:?}", root_dir);
         Ok(())
     }
 }

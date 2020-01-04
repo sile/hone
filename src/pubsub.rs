@@ -86,7 +86,7 @@ impl Subscriber {
 
             let path = entry.path();
             if !self.journals.contains_key(&path) {
-                eprintln!("New journal file: {:?}", path);
+                eprintln!("[HONE] New journal file: {:?}", path);
                 let journal = track!(File::open(&path).map_err(Error::from))?;
                 self.journals
                     .insert(path.clone(), JournalReader::new(journal));

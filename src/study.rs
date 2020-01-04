@@ -118,7 +118,7 @@ impl StudyServer {
         let tx = self.tx.take().unwrap_or_else(|| unreachable!());
         thread::spawn(move || {
             if let Err(e) = track!(self.run()) {
-                eprintln!("Study Server Error: {}", e);
+                eprintln!("[HONE] Study Server Error: {}", e);
             }
         });
         StudyServerHandle { tx }
@@ -197,7 +197,7 @@ impl StudyServer {
                 track_panic!(ErrorKind::Bug, "Unexpected message: {:?}", message)
             }
             Message::ReportCast { step, metric } => {
-                eprintln!("Reported: step={:?}, metric={:?}", step, metric);
+                eprintln!("[HONE] Reported: step={:?}, metric={:?}", step, metric);
                 let trial = track_assert_some!(self.current_trial.as_mut(), ErrorKind::Bug);
                 trial.report(step, &metric);
 

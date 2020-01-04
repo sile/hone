@@ -42,7 +42,7 @@ impl Runner {
     }
 
     pub fn run(mut self) -> Result<()> {
-        eprintln!("Study Name: {}", self.study_name);
+        eprintln!("[HONE] Study Name: {}", self.study_name);
         let data_dir = track!(self.config.data_dir())?;
         let pubsub = PubSub::new(data_dir);
         let study = track!(StudyServer::new(
@@ -51,7 +51,7 @@ impl Runner {
             RandomOptimizer::new()
         ))?;
         let server_addr = track!(study.addr())?;
-        eprintln!("Server Address: {}", server_addr);
+        eprintln!("[HONE] Server Address: {}", server_addr);
 
         let handle = study.spawn();
 
@@ -67,10 +67,10 @@ impl Runner {
             .args(&self.opt.args)
             .spawn()
             .map_err(Error::from))?;
-        eprintln!("Spawn child process(pid={})", child.id());
+        eprintln!("[HONE] Spawn child process(pid={})", child.id());
         let mut trial = Trial::new(child, trial);
         let status = track!(trial.child.wait().map_err(Error::from))?;
-        eprintln!("Child process finished: {:?}", status);
+        eprintln!("[HONE] Child process finished: {:?}", status);
 
         Ok(())
     }
