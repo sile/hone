@@ -1,10 +1,9 @@
 use crate::config::Config;
 use crate::optimizer::RandomOptimizer;
 use crate::pubsub::PubSub;
-use crate::study::StudyServer;
+use crate::study::{StudyServer, StudyServerHandle, TrialHandle};
 use crate::{Error, Result};
-use std::mem;
-use std::process::Command;
+use std::process::{Child, Command};
 use structopt::StructOpt;
 use uuid::Uuid;
 
@@ -12,7 +11,10 @@ use uuid::Uuid;
 pub struct RunOpt {
     #[structopt(long)]
     pub study: Option<String>,
-    // timeout, repeats, search-space
+
+    #[structopt(long, default_value = "1")]
+    pub repeats: usize,
+    // timeout, search-space, parallelism
     pub command: String,
     pub args: Vec<String>,
 }
@@ -39,9 +41,8 @@ impl Runner {
         })
     }
 
-    pub fn run(self) -> Result<()> {
+    pub fn run(mut self) -> Result<()> {
         eprintln!("Study Name: {}", self.study_name);
-
         let data_dir = track!(self.config.data_dir())?;
         let pubsub = PubSub::new(data_dir);
         let study = track!(StudyServer::new(
@@ -54,18 +55,43 @@ impl Runner {
 
         let handle = study.spawn();
 
-        let trial = track!(handle.start_trial())?;
+        for _ in 0..self.opt.repeats {
+            track!(self.run_once(&handle))?;
+        }
+        Ok(())
+    }
 
-        // TODO: kill child process when crached.
-        let mut child = track!(Command::new(&self.opt.command)
+    fn run_once(&mut self, handle: &StudyServerHandle) -> Result<()> {
+        let trial = track!(handle.start_trial())?;
+        let child = track!(Command::new(&self.opt.command)
             .args(&self.opt.args)
             .spawn()
             .map_err(Error::from))?;
         eprintln!("Spawn child process(pid={})", child.id());
-        let status = track!(child.wait().map_err(Error::from))?;
+        let mut trial = Trial::new(child, trial);
+        let status = track!(trial.child.wait().map_err(Error::from))?;
         eprintln!("Child process finished: {:?}", status);
-        mem::drop(trial);
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct Trial {
+    child: Child,
+    handle: TrialHandle,
+}
+
+impl Trial {
+    fn new(child: Child, handle: TrialHandle) -> Self {
+        Self { child, handle }
+    }
+}
+
+impl Drop for Trial {
+    fn drop(&mut self) {
+        if self.child.kill().is_ok() {
+            let _ = self.child.wait(); // for preventing the child process becomes a zombie.
+        }
     }
 }

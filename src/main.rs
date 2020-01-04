@@ -17,7 +17,7 @@ enum Opt {
     Report(hone::report::ReportOpt),
     Studies(hone::studies::StudiesOpt),
     Trials(hone::trials::TrialsOpt),
-    // Watch,
+    // Watch, Pareto-Front, Best, Stats (n_trials,param_num,elapsed_times), Plot
 }
 
 fn main() -> trackable::result::TopLevelResult {

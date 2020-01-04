@@ -14,6 +14,7 @@ pub struct ReportOpt {
     #[structopt(long)]
     pub step: Option<NonZeroU64>,
 
+    // pub 異なるステップの値同士が比較可能: bool
     #[structopt(long, default_value = "MINIMIZE")]
     pub direction: Direction,
 }
