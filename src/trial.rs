@@ -1,12 +1,14 @@
 use crate::metric::{Direction, Metric};
 use crate::param::{ParamSpec, ParamValue};
 use crate::{Error, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::num::NonZeroU64;
 use std::time::{Duration, UNIX_EPOCH};
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct Trial {
     pub id: Uuid,
     pub timestamp: Duration,
@@ -16,14 +18,21 @@ pub struct Trial {
 }
 
 impl Trial {
-    pub fn new() -> Result<Self> {
-        Ok(Self {
-            id: Uuid::new_v4(),
-            timestamp: track!(UNIX_EPOCH.elapsed().map_err(Error::from))?,
+    pub fn with_id_and_timestamp(id: Uuid, timestamp: Duration) -> Self {
+        Self {
+            id,
+            timestamp,
             param_specs: BTreeMap::new(),
             param_values: BTreeMap::new(),
             metrics: BTreeMap::new(),
-        })
+        }
+    }
+
+    pub fn new() -> Result<Self> {
+        Ok(Self::with_id_and_timestamp(
+            Uuid::new_v4(),
+            track!(UNIX_EPOCH.elapsed().map_err(Error::from))?,
+        ))
     }
 
     pub fn report(&mut self, step: Option<NonZeroU64>, metric: &Metric) {

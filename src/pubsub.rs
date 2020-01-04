@@ -21,6 +21,18 @@ impl PubSub {
         Self { data_dir }
     }
 
+    pub fn subscribe(&mut self, study_name: &str) -> Result<Subscriber> {
+        let dir = self.data_dir.join(format!("{}/", study_name));
+        if !dir.exists() {
+            track_panic!(ErrorKind::InvalidInput, "No such study: {:?}", study_name);
+        }
+
+        Ok(Subscriber {
+            dir,
+            journals: HashMap::new(),
+        })
+    }
+
     pub fn channel(&mut self, study_name: &str) -> Result<PubSubChannel> {
         let dir = self.data_dir.join(format!("{}/", study_name));
         track!(fs::create_dir_all(&dir).map_err(Error::from); dir)?;
@@ -31,21 +43,19 @@ impl PubSub {
             .write(true)
             .open(dir.join(thread_id.to_string()))
             .map_err(Error::from))?;
+        let subscriber = track!(self.subscribe(study_name))?;
         Ok(PubSubChannel {
-            dir,
-            thread_id,
             my_journal: JournalWriter::new(my_journal),
-            journals: HashMap::new(),
+            subscriber,
         })
     }
 }
 
+// TODO: s/../Publisher/
 #[derive(Debug)]
 pub struct PubSubChannel {
-    dir: PathBuf,
-    thread_id: Uuid,
     my_journal: JournalWriter,
-    journals: HashMap<PathBuf, JournalReader>,
+    subscriber: Subscriber,
 }
 
 impl PubSubChannel {
@@ -55,6 +65,18 @@ impl PubSubChannel {
     }
 
     pub fn poll(&mut self) -> Result<Vec<(Uuid, TrialAction)>> {
+        track!(self.subscriber.poll())
+    }
+}
+
+#[derive(Debug)]
+pub struct Subscriber {
+    dir: PathBuf,
+    journals: HashMap<PathBuf, JournalReader>,
+}
+
+impl Subscriber {
+    pub fn poll(&mut self) -> Result<Vec<(Uuid, TrialAction)>> {
         let mut queue = Vec::new();
         for entry in track!(fs::read_dir(&self.dir).map_err(Error::from))? {
             let entry = track!(entry.map_err(Error::from))?;
@@ -62,7 +84,6 @@ impl PubSubChannel {
                 continue;
             }
 
-            // TODO: exclude my-journal
             let path = entry.path();
             if !self.journals.contains_key(&path) {
                 eprintln!("New journal file: {:?}", path);

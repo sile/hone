@@ -17,6 +17,7 @@ pub mod init;
 pub mod report;
 pub mod run;
 pub mod studies;
+pub mod trials;
 
 mod error;
 

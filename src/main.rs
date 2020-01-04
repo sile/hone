@@ -16,7 +16,8 @@ enum Opt {
     Get(hone::get::GetOpt),
     Report(hone::report::ReportOpt),
     Studies(hone::studies::StudiesOpt),
-    // Watch, Trials
+    Trials(hone::trials::TrialsOpt),
+    // Watch,
 }
 
 fn main() -> trackable::result::TopLevelResult {
@@ -46,6 +47,13 @@ fn main() -> trackable::result::TopLevelResult {
             let config = track!(config::Config::load_from_file(config_path))?;
             let studies = track!(hone::studies::list_studies(opt, &config))?;
             let json = track!(serde_json::to_string_pretty(&studies).map_err(Error::from))?;
+            println!("{}", json);
+        }
+        Opt::Trials(opt) => {
+            let config_path = track!(config::Config::lookup_path())?;
+            let config = track!(config::Config::load_from_file(config_path))?;
+            let trials = track!(hone::trials::list_trials(opt, &config))?;
+            let json = track!(serde_json::to_string_pretty(&trials).map_err(Error::from))?;
             println!("{}", json);
         }
     }
