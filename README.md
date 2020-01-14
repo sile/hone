@@ -6,40 +6,20 @@ $ hone run -- bash -c 'foo.py lr=`hone get float --ln x 0.0001 1.0` | grep -oP "
 ```
 
 ```console
-$ hone init
+#!/bin/bash
+#
+# $ hone init
+# $ hone run --study mnist --repeats 10 examples/pytorch-mnist.sh
+# $ hone trials mnist | hone best
+#
+set -eux
 
-$ hone run --study-name foo -- bash 'foo.py lr=`hone get x int 0 10`'
-$ hone study foo-bar
-$ for i in `seq 1 10`
-$ then
-$   hone start
-$   X=`hone get x int 0 10`
-$   Y=`hone get y int 3 8`
-$   echo $(($X * $Y)) | hone observe
-$   hone end
-$ end
+SCRIPT_URL=https://raw.githubusercontent.com/pytorch/examples/master/mnist/main.py
 
-$ hone show best-params
+LR=$(hone get lr choice 0.001 0.01 0.1 1.0)
+GAMMA=$(hone get gamma choice 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9)
+
+curl -L $SCRIPT_URL | python -u - --lr=$LR --gamma=$GAMMA --epochs 3 | tee /tmp/mnist.log
+
+grep -oP '(?<=Test set: Average loss: )[0-9.]*' /tmp/mnist.log | tail -1 | xargs hone report
 ```
-
-Directory Structure
--------------------
-
-```
-.hone/
-  config.json
-  data/
-    {STUDY_ID}/
-      finished/
-      running/
-        {THREAD_ID}/
-```
-
-Distributed Optimization
-------------------------
-
-You can parallelize your optimization process using ordinal unix functionalities:
-- NFS
-
-[MEMO]
-Unlike Optuna, hone doesn't support RDB storage. Instead, it allows data to be shared via NFS ...
