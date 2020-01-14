@@ -1,10 +1,6 @@
 hone
 ====
 
-```console
-$ hone run -- bash -c 'foo.py lr=`hone get float --ln x 0.0001 1.0` | grep -oP "(?<=ACC:)[0-9.]*" | hone report'
-```
-
 ```bash
 #!/bin/bash
 #
