@@ -3,7 +3,11 @@ name = "hone"
 version = "0.0.1"
 authors = ["Takeru Ohta <phjgt308@gmail.com>"]
 edition = "2018"
-publish = false
+description = "A shell-friendly parameter search tool inspired by Optuna"
+homepage = "https://github.com/sile/hone"
+repository = "https://github.com/sile/hone"
+readme = "README.md"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
