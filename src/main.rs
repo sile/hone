@@ -9,6 +9,7 @@ use structopt::StructOpt;
 #[structopt(rename_all = "kebab-case")]
 enum Opt {
     Hp(hone::hp::HpOpt),
+    Run(hone::run::RunOpt),
 }
 //     Init(init::InitOpt),
 //     Run(run::RunOpt),
@@ -29,6 +30,9 @@ fn main() -> anyhow::Result<()> {
         Opt::Hp(opt) => {
             let value = opt.ask()?;
             println!("{}", value);
+        }
+        Opt::Run(opt) => {
+            opt.run()?;
         }
     }
     // match opt {
