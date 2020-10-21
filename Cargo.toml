@@ -22,4 +22,5 @@ serde = { version="1", features=["derive"] }
 serde_json = "1"
 structopt = "0.3"
 thiserror = "1"
+tpe = "0.1"
 uuid = { version="0.8", features=["serde", "v4"] }

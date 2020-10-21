@@ -1,11 +1,22 @@
+use crate::rng::ArcRng;
+use anyhow::ensure;
+use rand::distributions::Distribution as _;
+use std::collections::BTreeMap;
+
 #[derive(Debug, Clone)]
-pub struct SearchSpace {}
+pub struct SearchSpace {
+    pub params: Vec<Distribution>,
+}
 
 #[derive(Debug, Clone)]
 pub struct PartialSearchSpace {
-    // pub asked_params: Vec<usize>,
-// pub fixed_params: Vec<(usize, f64)>,
+    pub params: BTreeMap<ParamIndex, Distribution>,
 }
+
+#[derive(Debug, Clone)]
+pub struct PartialParams(pub BTreeMap<ParamIndex, f64>);
+
+pub type ParamIndex = usize;
 
 #[derive(Debug, Clone)]
 pub enum Distribution {
@@ -14,107 +25,167 @@ pub enum Distribution {
     Categorical { size: usize },
 }
 
+impl Distribution {
+    pub fn size(&self) -> f64 {
+        match self {
+            Self::Continuous { size } => *size,
+            Self::Discrete { size } => *size as f64,
+            Self::Categorical { size } => *size as f64,
+        }
+    }
+}
+
+impl rand::distributions::Distribution<f64> for Distribution {
+    fn sample<R: ?Sized + rand::Rng>(&self, rng: &mut R) -> f64 {
+        match self {
+            Self::Continuous { size } => rng.gen_range(0.0, size),
+            Self::Discrete { size } => rng.gen_range(0, size) as f64,
+            Self::Categorical { size } => rng.gen_range(0, size) as f64,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TrialId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Fidelity(f64);
+
+impl Fidelity {
+    pub fn new(fidelity: f64) -> anyhow::Result<Self> {
+        ensure!(fidelity.is_finite(), "TODO");
+        ensure!(fidelity > 0.0, "TODO");
+        ensure!(fidelity <= 1.0, "TODO");
+        Ok(Self(fidelity))
+    }
+
+    pub const fn get(self) -> f64 {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EvaluatedTrial {
-    pub trial_id: usize,
+    pub trial_id: TrialId,
     pub params: Vec<f64>,
     pub values: Option<Vec<f64>>, // `None` means it's a failed trial
-    pub fidelity: f64,
+    pub fidelity: Fidelity,
 }
 
 pub trait Optimizer {
-    fn ask(
-        &mut self,
-        trial_id: usize,
-        param: usize,
-        distribution: Distribution,
-    ) -> anyhow::Result<f64>;
-
-    fn tell(&mut self, trial: &EvaluatedTrial) -> anyhow::Result<()>;
-
     fn initialize(&mut self, search_space: &SearchSpace) -> anyhow::Result<()>;
 
-    // fn ask(&mut self, trial_id: Uuid, param: &Param) -> Result<ParamValue>;
-    // fn tell(&mut self, trial_id: Uuid, action: &TrialAction) -> Result<()>;
-    // fn prune(&mut self, trial_id: Uuid) -> Result<bool>;
+    #[allow(unused_variables)]
+    fn ask_fidelity(&mut self, trial_id: TrialId) -> anyhow::Result<Fidelity> {
+        Ok(Fidelity(1.0))
+    }
+
+    fn ask_params(
+        &mut self,
+        trial_id: TrialId,
+        search_space: &PartialSearchSpace,
+    ) -> anyhow::Result<PartialParams>;
+
+    fn tell(&mut self, trial: &EvaluatedTrial) -> anyhow::Result<()>;
 }
 
-// use crate::param::{Param, ParamSpec, ParamValue};
-// use crate::pubsub::TrialAction;
-// use crate::{ErrorKind, Result};
-// use rand::rngs::StdRng;
-// use rand::seq::SliceRandom as _;
-// use rand::SeedableRng as _;
-// use std::fmt;
-// use uuid::Uuid;
+#[derive(Debug)]
+pub struct RandomOptimizer {
+    rng: ArcRng,
+}
 
-// pub trait Optimizer {
-//     fn ask(&mut self, trial_id: Uuid, param: &Param) -> Result<ParamValue>;
-//     fn tell(&mut self, trial_id: Uuid, action: &TrialAction) -> Result<()>;
-//     fn prune(&mut self, trial_id: Uuid) -> Result<bool>;
-// }
+impl RandomOptimizer {
+    pub fn new(rng: ArcRng) -> Self {
+        Self { rng }
+    }
+}
 
-// pub struct BoxOptimizer(Box<dyn 'static + Optimizer + Send>);
+impl Optimizer for RandomOptimizer {
+    fn initialize(&mut self, _search_space: &SearchSpace) -> anyhow::Result<()> {
+        Ok(())
+    }
 
-// impl BoxOptimizer {
-//     pub fn new<T>(optimizer: T) -> Self
-//     where
-//         T: 'static + Optimizer + Send,
-//     {
-//         Self(Box::new(optimizer))
-//     }
-// }
+    fn ask_params(
+        &mut self,
+        _trial_id: TrialId,
+        search_space: &PartialSearchSpace,
+    ) -> anyhow::Result<PartialParams> {
+        let params = search_space
+            .params
+            .iter()
+            .map(|(i, d)| (*i, d.sample(&mut self.rng)))
+            .collect();
+        Ok(PartialParams(params))
+    }
 
-// impl fmt::Debug for BoxOptimizer {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "BoxOptimizer(..)")
-//     }
-// }
-
-// impl Optimizer for BoxOptimizer {
-//     fn ask(&mut self, trial_id: Uuid, param: &Param) -> Result<ParamValue> {
-//         (*self.0).ask(trial_id, param)
-//     }
-
-//     fn tell(&mut self, trial_id: Uuid, action: &TrialAction) -> Result<()> {
-//         (*self.0).tell(trial_id, action)
-//     }
-
-//     fn prune(&mut self, trial_id: Uuid) -> Result<bool> {
-//         (*self.0).prune(trial_id)
-//     }
-// }
+    fn tell(&mut self, _trial: &EvaluatedTrial) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
 
 // #[derive(Debug)]
-// pub struct RandomOptimizer {
-//     rng: StdRng,
+// pub struct TpeOptimizer {
+//     rng: ArcRng,
+//     inners: Vec<tpe::TpeOptimizer>,
+//     // TODO: warmup, trials
 // }
 
-// impl RandomOptimizer {
-//     pub fn new() -> Self {
-//         Self::with_seed(rand::random())
-//     }
-
-//     pub fn with_seed(seed: u64) -> Self {
-//         let mut seed256 = [0; 32];
-//         (&mut seed256[0..8]).copy_from_slice(&seed.to_be_bytes());
-//         let rng = StdRng::from_seed(seed256);
-//         Self { rng }
+// impl TpeOptimizer {
+//     pub fn new(rng: ArcRng) -> Self {
+//         Self {
+//             rng,
+//             inners: Vec::new(),
+//         }
 //     }
 // }
 
-// impl Optimizer for RandomOptimizer {
-//     fn ask(&mut self, _trial_id: Uuid, param: &Param) -> Result<ParamValue> {
-//         let ParamSpec::Choice { choices } = &param.spec;
-//         let value = track_assert_some!(choices.choose(&mut self.rng), ErrorKind::InvalidInput);
-//         Ok(ParamValue(value.clone()))
-//     }
-
-//     fn tell(&mut self, _trial_id: Uuid, _action: &TrialAction) -> Result<()> {
+// impl Optimizer for TpeOptimizer {
+//     fn initialize(&mut self, search_space: &SearchSpace) -> anyhow::Result<()> {
+//         self.inners = search_space
+//             .params
+//             .iter()
+//             .map(|d| {
+//                 let estimator = if let Distribution::Categorical { .. } = d {
+//                     tpe::histogram_estimator()
+//                 } else {
+//                     tpe::parzen_estimator()
+//                 };
+//                 Ok(tpe::TpeOptimizer::new(
+//                     estimator,
+//                     tpe::range::Range::new(0.0, d.size())?,
+//                 ))
+//             })
+//             .collect::<Result<_, tpe::range::RangeError>>()?;
 //         Ok(())
 //     }
 
-//     fn prune(&mut self, _trial_id: Uuid) -> Result<bool> {
-//         Ok(false)
+//     fn ask_params(
+//         &mut self,
+//         _trial_id: TrialId,
+//         search_space: &PartialSearchSpace,
+//     ) -> anyhow::Result<PartialParams> {
+//         let mut params = BTreeMap::new();
+//         for (i, d) in search_space.params.iter() {}
+//         let params = search_space
+//             .params
+//             .iter()
+//             .map(|(i, _)| (*i, self.inners[*i].ask(&mut self.rng).expect("unreachable")))
+//             .collect();
+//         Ok(PartialParams(params))
+//     }
+
+//     fn tell(&mut self, trial: &EvaluatedTrial) -> anyhow::Result<()> {
+//         let value = if let Some(values) = &trial.values {
+//             ensure!(values.len() == 1, "TODO");
+//             values[0]
+//         } else {
+//             std::f64::INFINITY // Penalty value.
+//         };
+
+//         for (p, o) in trial.params.iter().zip(self.inners.iter_mut()) {
+//             o.tell(*p, value)?;
+//         }
+
+//         Ok(())
 //     }
 // }
