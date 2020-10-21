@@ -14,6 +14,7 @@ license = "MIT"
 [dependencies]
 anyhow = "1"
 bytecodec = { version = "0.4", features = ["bincode_codec"] }
+fibers = "0.1"
 fibers_global = "0.1"
 fibers_rpc = "0.3"
 futures = "0.1"

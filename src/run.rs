@@ -1,3 +1,6 @@
+use crate::envvar;
+use crate::rpc;
+use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::process::{Child, Command};
 use structopt::StructOpt;
@@ -14,6 +17,7 @@ pub struct RunOpt {
     #[structopt(long, default_value = "1")]
     pub parallelism: NonZeroUsize,
 
+    // TODO: seed
     // TODO: timeout, search-space, retry, sync
     pub command: String,
     pub args: Vec<String>,
@@ -21,22 +25,72 @@ pub struct RunOpt {
 
 impl RunOpt {
     pub fn run(self) -> anyhow::Result<()> {
-        Runner::new(self).run()
+        Runner::new(self)?.run()
     }
 }
 
 #[derive(Debug)]
 pub struct Runner {
     options: RunOpt,
+    server_addr: SocketAddr,
+    channel: rpc::Channel,
 }
 
 impl Runner {
-    pub fn new(options: RunOpt) -> Self {
-        Self { options }
+    pub fn new(options: RunOpt) -> anyhow::Result<Self> {
+        let (server_addr, channel) = rpc::spawn_rpc_server()?;
+        eprintln!("SERVER_ADDR: {}", server_addr);
+        Ok(Self {
+            options,
+            server_addr,
+            channel,
+        })
     }
 
-    pub fn run(self) -> anyhow::Result<()> {
-        todo!()
+    pub fn run(mut self) -> anyhow::Result<()> {
+        let mut optimizer = crate::optimizer::RandomOptimizer::new(crate::rng::ArcRng::new(0));
+        let mut workers: Vec<Child> = Vec::new();
+        let mut trial_id = 0;
+        while trial_id < self.options.repeat {
+            if let Some(m) = self.channel.try_recv() {
+                eprintln!("RECV: {:?}", m);
+                continue;
+            }
+
+            while workers.len() < self.options.parallelism.get() {
+                workers.push(self.spawn_worker(trial_id)?);
+                eprintln!("New worker started: trial={}", trial_id);
+                trial_id += 1;
+            }
+
+            let mut i = 0;
+            while i < workers.len() {
+                match workers[i].try_wait() {
+                    Err(e) => todo!("{}", e),
+                    Ok(None) => {
+                        i += 1;
+                    }
+                    Ok(status) => {
+                        // TODO: tell
+                        eprintln!("Worker finished: {:?}", status);
+                        workers.swap_remove(i);
+                    }
+                }
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        Ok(())
+    }
+
+    fn spawn_worker(&mut self, trial_id: usize) -> anyhow::Result<Child> {
+        let child = Command::new(&self.options.command)
+            .args(&self.options.args)
+            .env(envvar::KEY_SERVER_ADDR, self.server_addr.to_string())
+            .env(envvar::KEY_TRIAL_ID, trial_id.to_string())
+            .spawn()?;
+        eprintln!("[HONE] Spawn child process(pid={})", child.id());
+        Ok(child)
     }
 }
 

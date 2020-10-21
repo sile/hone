@@ -12,8 +12,8 @@ pub struct HpOpt {
     pub spec: HpSpec,
 
     #[structopt(long)]
-    pub arg: bool,
-    // TODO: server_addr, trial_id
+    pub arg: bool, // eval
+                   // TODO: server_addr, trial_id
 }
 
 impl HpOpt {
@@ -72,6 +72,8 @@ pub enum HpDistribution {
         ln: bool,
         #[structopt(long)]
         step: Option<f64>,
+        #[structopt(long)]
+        fidelity: bool,
     },
     Normal {
         mean: f64,

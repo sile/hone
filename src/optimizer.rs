@@ -1,28 +1,19 @@
 use crate::rng::ArcRng;
-use anyhow::ensure;
-use rand::distributions::Distribution as _;
-use std::collections::BTreeMap;
+use rand::Rng;
 
 #[derive(Debug, Clone)]
 pub struct SearchSpace {
     pub params: Vec<Distribution>,
 }
 
-#[derive(Debug, Clone)]
-pub struct PartialSearchSpace {
-    pub params: BTreeMap<ParamIndex, Distribution>,
-}
-
-#[derive(Debug, Clone)]
-pub struct PartialParams(pub BTreeMap<ParamIndex, f64>);
-
 pub type ParamIndex = usize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Distribution {
     Continuous { size: f64 },
     Discrete { size: usize },
     Categorical { size: usize },
+    Fidelity,
 }
 
 impl Distribution {
@@ -31,16 +22,7 @@ impl Distribution {
             Self::Continuous { size } => *size,
             Self::Discrete { size } => *size as f64,
             Self::Categorical { size } => *size as f64,
-        }
-    }
-}
-
-impl rand::distributions::Distribution<f64> for Distribution {
-    fn sample<R: ?Sized + rand::Rng>(&self, rng: &mut R) -> f64 {
-        match self {
-            Self::Continuous { size } => rng.gen_range(0.0, size),
-            Self::Discrete { size } => rng.gen_range(0, size) as f64,
-            Self::Categorical { size } => rng.gen_range(0, size) as f64,
+            Self::Fidelity => 1.0,
         }
     }
 }
@@ -48,43 +30,22 @@ impl rand::distributions::Distribution<f64> for Distribution {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TrialId(pub usize);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Fidelity(f64);
-
-impl Fidelity {
-    pub fn new(fidelity: f64) -> anyhow::Result<Self> {
-        ensure!(fidelity.is_finite(), "TODO");
-        ensure!(fidelity > 0.0, "TODO");
-        ensure!(fidelity <= 1.0, "TODO");
-        Ok(Self(fidelity))
-    }
-
-    pub const fn get(self) -> f64 {
-        self.0
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct EvaluatedTrial {
     pub trial_id: TrialId,
     pub params: Vec<f64>,
     pub values: Option<Vec<f64>>, // `None` means it's a failed trial
-    pub fidelity: Fidelity,
 }
 
 pub trait Optimizer {
     fn initialize(&mut self, search_space: &SearchSpace) -> anyhow::Result<()>;
 
-    #[allow(unused_variables)]
-    fn ask_fidelity(&mut self, trial_id: TrialId) -> anyhow::Result<Fidelity> {
-        Ok(Fidelity(1.0))
-    }
-
-    fn ask_params(
+    fn ask(
         &mut self,
         trial_id: TrialId,
-        search_space: &PartialSearchSpace,
-    ) -> anyhow::Result<PartialParams>;
+        param: ParamIndex,
+        distribution: Distribution,
+    ) -> anyhow::Result<f64>;
 
     fn tell(&mut self, trial: &EvaluatedTrial) -> anyhow::Result<()>;
 }
@@ -105,17 +66,17 @@ impl Optimizer for RandomOptimizer {
         Ok(())
     }
 
-    fn ask_params(
+    fn ask(
         &mut self,
         _trial_id: TrialId,
-        search_space: &PartialSearchSpace,
-    ) -> anyhow::Result<PartialParams> {
-        let params = search_space
-            .params
-            .iter()
-            .map(|(i, d)| (*i, d.sample(&mut self.rng)))
-            .collect();
-        Ok(PartialParams(params))
+        _param: ParamIndex,
+        distribution: Distribution,
+    ) -> anyhow::Result<f64> {
+        if let Distribution::Fidelity = distribution {
+            Ok(1.0)
+        } else {
+            Ok(self.rng.gen_range(0.0, distribution.size()))
+        }
     }
 
     fn tell(&mut self, _trial: &EvaluatedTrial) -> anyhow::Result<()> {
@@ -125,9 +86,8 @@ impl Optimizer for RandomOptimizer {
 
 // #[derive(Debug)]
 // pub struct TpeOptimizer {
+//     random: RandomOptimizer,
 //     rng: ArcRng,
-//     inners: Vec<tpe::TpeOptimizer>,
-//     // TODO: warmup, trials
 // }
 
 // impl TpeOptimizer {

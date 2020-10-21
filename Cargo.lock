@@ -240,6 +240,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "bytecodec",
+ "fibers",
  "fibers_global",
  "fibers_rpc",
  "futures",
