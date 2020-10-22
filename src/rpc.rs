@@ -59,10 +59,47 @@ pub enum AskError {
 }
 
 #[derive(Debug)]
+pub struct TellRpc;
+
+impl Call for TellRpc {
+    const ID: ProcedureId = ProcedureId(1);
+    const NAME: &'static str = "tell";
+
+    type Req = TellReq;
+    type ReqEncoder = BincodeEncoder<Self::Req>;
+    type ReqDecoder = BincodeDecoder<Self::Req>;
+
+    type Res = Result<(), TellError>;
+    type ResEncoder = BincodeEncoder<Self::Res>;
+    type ResDecoder = BincodeDecoder<Self::Res>;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TellReq {
+    pub trial_id: u64,
+    pub value_name: String,
+    pub minimize: bool,
+    pub value: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, thiserror::Error)]
+pub enum TellError {
+    #[error("TODO")]
+    RecvError,
+
+    #[error("TODO")]
+    InvalidRequest,
+}
+
+#[derive(Debug)]
 pub enum Message {
     Ask {
         req: AskReq,
         reply: fibers::sync::oneshot::Sender<Result<HpValue, AskError>>,
+    },
+    Tell {
+        req: TellReq,
+        reply: fibers::sync::oneshot::Sender<Result<(), TellError>>,
     },
 }
 
@@ -97,11 +134,27 @@ impl fibers_rpc::server::HandleCall<AskRpc> for AskHandler {
     }
 }
 
+#[derive(Debug)]
+pub struct TellHandler {
+    tx: fibers::sync::mpsc::Sender<Message>,
+}
+
+impl fibers_rpc::server::HandleCall<TellRpc> for TellHandler {
+    fn handle_call(&self, req: <TellRpc as Call>::Req) -> fibers_rpc::server::Reply<TellRpc> {
+        let (tx, rx) = fibers::sync::oneshot::channel();
+        let _ = self.tx.send(Message::Tell { req, reply: tx });
+        fibers_rpc::server::Reply::future(
+            rx.then(|result| Ok(result.unwrap_or_else(|_| Err(TellError::RecvError)))),
+        )
+    }
+}
+
 // TODO:
 pub fn spawn_rpc_server() -> anyhow::Result<(SocketAddr, Channel)> {
     let mut builder = ServerBuilder::new(SocketAddr::from(([127, 0, 0, 1], 0)));
     let (tx, rx) = fibers::sync::mpsc::channel();
-    builder.add_call_handler(AskHandler { tx });
+    builder.add_call_handler(AskHandler { tx: tx.clone() });
+    builder.add_call_handler(TellHandler { tx: tx.clone() });
     let server = builder.finish(fibers_global::handle());
     let (server, addr) = fibers_global::execute(server.local_addr())?;
     fibers_global::spawn(server.map_err(|e| panic!("{}", e)));

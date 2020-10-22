@@ -4,8 +4,44 @@ use rand::Rng;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
+pub struct ValueDomain {
+    pub minimize: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectiveSpace {
+    pub values: BTreeMap<String, ValueDomain>,
+}
+
+impl ObjectiveSpace {
+    pub fn new() -> Self {
+        Self {
+            values: BTreeMap::new(),
+        }
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.values.contains_key(name)
+    }
+
+    pub fn index(&self, name: &str) -> Option<usize> {
+        self.values.iter().position(|x| x.0 == name)
+    }
+
+    pub fn expand_if_need(&mut self, name: &str, value: &ValueDomain) -> anyhow::Result<bool> {
+        if let Some(x) = self.values.get_mut(name) {
+            anyhow::ensure!(x.minimize == value.minimize, "TODO");
+            Ok(false)
+        } else {
+            self.values.insert(name.to_owned(), value.clone());
+            Ok(true)
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SearchSpace {
-    params: BTreeMap<String, hp::HpDistribution>,
+    pub params: BTreeMap<String, hp::HpDistribution>,
 }
 
 impl SearchSpace {
@@ -30,6 +66,14 @@ impl SearchSpace {
             self.params.insert(name.to_owned(), d.clone());
             Ok(true)
         }
+    }
+
+    pub fn unwarp(&self, name: &str, value: f64) -> anyhow::Result<hp::HpValue> {
+        let d = self
+            .params
+            .get(name)
+            .ok_or_else(|| anyhow::anyhow!("TOOD"))?;
+        d.unwarp(value)
     }
 }
 
@@ -122,7 +166,11 @@ pub struct EvaluatedTrial {
 }
 
 pub trait Optimizer {
-    fn initialize(&mut self, search_space: &SearchSpace) -> anyhow::Result<()>;
+    fn initialize(
+        &mut self,
+        search_space: &SearchSpace,
+        objective_space: &ObjectiveSpace,
+    ) -> anyhow::Result<()>;
 
     fn ask(
         &mut self,
@@ -146,7 +194,11 @@ impl RandomOptimizer {
 }
 
 impl Optimizer for RandomOptimizer {
-    fn initialize(&mut self, _search_space: &SearchSpace) -> anyhow::Result<()> {
+    fn initialize(
+        &mut self,
+        _search_space: &SearchSpace,
+        _objective_space: &ObjectiveSpace,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 

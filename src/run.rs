@@ -1,7 +1,8 @@
 use crate::envvar;
+use crate::optimizer;
 use crate::optimizer::Optimizer;
 use crate::rpc;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::process::{Child, Command};
@@ -33,14 +34,50 @@ impl RunOpt {
 
 #[derive(Debug)]
 pub struct TrialState {
-    asked_params: HashMap<String, crate::hp::HpValue>,
+    trial_id: u64,
+    params: BTreeMap<String, crate::hp::HpValue>,
+    values: BTreeMap<String, f64>,
+    failed: bool,
 }
 
 impl TrialState {
-    pub fn new() -> Self {
+    pub fn new(trial_id: u64) -> Self {
         Self {
-            asked_params: HashMap::new(),
+            trial_id,
+            params: BTreeMap::new(),
+            values: BTreeMap::new(),
+            failed: false,
         }
+    }
+
+    pub fn to_evaluated_trial(
+        &self,
+        ss: &optimizer::SearchSpace,
+        os: &optimizer::ObjectiveSpace,
+    ) -> anyhow::Result<optimizer::EvaluatedTrial> {
+        let mut params = Vec::new();
+        for (name, distribution) in ss.params.iter() {
+            if let Some(v) = self.params.get(name) {
+                params.push(distribution.warp(v)?);
+            } else {
+                params.push(std::f64::NAN);
+            }
+        }
+
+        let mut values = Vec::new();
+        for (name, domain) in os.values.iter() {
+            if let Some(v) = self.values.get(name) {
+                params.push(if domain.minimize { *v } else { -*v });
+            } else {
+                values.push(std::f64::NAN);
+            }
+        }
+
+        Ok(optimizer::EvaluatedTrial {
+            trial_id: self.trial_id,
+            params,
+            values: if self.failed { None } else { Some(values) },
+        })
     }
 }
 
@@ -51,7 +88,9 @@ pub struct Runner {
     channel: rpc::Channel,
     optimizer: crate::optimizer::RandomOptimizer,
     search_space: crate::optimizer::SearchSpace,
-    running_trials: HashMap<u64, TrialState>,
+    objective_space: crate::optimizer::ObjectiveSpace,
+    running_trials: BTreeMap<u64, TrialState>,
+    evaluated_trials: Vec<TrialState>,
 }
 
 impl Runner {
@@ -62,16 +101,18 @@ impl Runner {
             options,
             server_addr,
             channel,
-            optimizer: crate::optimizer::RandomOptimizer::new(crate::rng::ArcRng::new(0)),
-            search_space: crate::optimizer::SearchSpace::new(),
-            running_trials: HashMap::new(),
+            optimizer: optimizer::RandomOptimizer::new(crate::rng::ArcRng::new(0)),
+            search_space: optimizer::SearchSpace::new(),
+            objective_space: optimizer::ObjectiveSpace::new(),
+            running_trials: BTreeMap::new(),
+            evaluated_trials: Vec::new(),
         })
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
         let mut workers: Vec<(u64, Child)> = Vec::new();
         let mut trial_id = 0;
-        while trial_id < self.options.repeat {
+        while self.evaluated_trials.len() < self.options.repeat {
             if let Some(m) = self.channel.try_recv() {
                 self.handle_message(m)?;
             }
@@ -80,7 +121,7 @@ impl Runner {
                 workers.push((trial_id as u64, self.spawn_worker(trial_id)?));
                 eprintln!("New worker started: trial={}", trial_id);
                 self.running_trials
-                    .insert(trial_id as u64, TrialState::new());
+                    .insert(trial_id as u64, TrialState::new(trial_id as u64));
                 trial_id += 1;
             }
 
@@ -95,7 +136,9 @@ impl Runner {
                         // TODO: tell
                         eprintln!("Worker finished: {:?}", status);
                         let (trial_id, _) = workers.swap_remove(i);
-                        self.running_trials.remove(&trial_id);
+                        let mut trial = self.running_trials.remove(&trial_id).expect("unreachable");
+                        trial.failed = !status.map_or(true, |s| s.success());
+                        self.evaluated_trials.push(trial);
                     }
                 }
             }
@@ -111,8 +154,16 @@ impl Runner {
                 let value = self.handle_ask(req)?;
                 let _ = reply.send(value);
             }
+            rpc::Message::Tell { req, reply } => {
+                let result = self.handle_tell(req)?;
+                let _ = reply.send(result);
+            }
         }
         Ok(())
+    }
+
+    fn handle_tell(&mut self, req: rpc::TellReq) -> anyhow::Result<Result<(), rpc::TellError>> {
+        todo!()
     }
 
     fn handle_ask(
@@ -124,7 +175,7 @@ impl Runner {
         } else {
             return Ok(Err(rpc::AskError::InvalidRequest));
         };
-        if let Some(value) = trial.asked_params.get(&req.param_name) {
+        if let Some(value) = trial.params.get(&req.param_name) {
             if req.distribution.is_some() {
                 // TODO: Error if req.distribution doesn't contain the value.
             }
@@ -138,8 +189,12 @@ impl Runner {
             .search_space
             .expand_if_need(&req.param_name, &hp_distribution)?;
         if is_expanded {
-            self.optimizer.initialize(&self.search_space)?;
-            // TODO: tell trials
+            self.optimizer
+                .initialize(&self.search_space, &self.objective_space)?;
+            for t in &self.evaluated_trials {
+                self.optimizer
+                    .tell(&t.to_evaluated_trial(&self.search_space, &self.objective_space)?)?;
+            }
         }
 
         let distribution = crate::optimizer::Distribution::from(hp_distribution);
@@ -148,9 +203,15 @@ impl Runner {
             .search_space
             .index(&req.param_name)
             .expect("unreachable");
-        self.optimizer
+        let param_value = self
+            .optimizer
             .ask(req.trial_id, param_index, distribution)?;
-        todo!()
+        let param_value = self.search_space.unwarp(&req.param_name, param_value)?;
+        trial
+            .params
+            .insert(req.param_name.clone(), param_value.clone());
+
+        Ok(Ok(param_value))
     }
 
     fn spawn_worker(&mut self, trial_id: usize) -> anyhow::Result<Child> {

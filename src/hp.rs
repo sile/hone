@@ -1,4 +1,5 @@
 use crate::envvar;
+use crate::hp;
 use crate::rpc;
 use anyhow::bail;
 use serde::{Deserialize, Serialize};
@@ -84,6 +85,128 @@ pub enum HpDistribution {
 }
 
 impl HpDistribution {
+    pub fn unwarp(&self, v: f64) -> anyhow::Result<hp::HpValue> {
+        match self {
+            Self::Flag => Ok(hp::HpValue::Flag(v != 0.0)),
+            Self::Choice { choices, .. } => Ok(hp::HpValue::Choice(
+                choices.get(v as usize).expect("TODO").clone(),
+            )),
+            Self::Normal { .. } => todo!(),
+            Self::Range {
+                fidelity,
+                ln: false,
+                step: None,
+                start,
+                end,
+            } => {
+                let v = if *fidelity {
+                    v * (*end - *start) + *start
+                } else {
+                    v
+                };
+                Ok(hp::HpValue::Range(v))
+            }
+            Self::Range {
+                fidelity,
+                ln: true,
+                step: None,
+                start,
+                end,
+            } => {
+                let v = if *fidelity {
+                    (v * (end.ln() - start.ln()) + start.ln()).exp()
+                } else {
+                    v.exp()
+                };
+                Ok(hp::HpValue::Range(v))
+            }
+            Self::Range {
+                fidelity: false,
+                ln: false,
+                step: Some(s),
+                start,
+                ..
+            } => Ok(hp::HpValue::Range(v.ceil() * s + *start)),
+            Self::Range {
+                fidelity: false,
+                ln: true,
+                step: Some(s),
+                start,
+                ..
+            } => Ok(hp::HpValue::Range((v.ceil() * s).exp() + start.exp())),
+            _ => todo!(),
+        }
+    }
+
+    pub fn warp(&self, v: &HpValue) -> anyhow::Result<f64> {
+        match (self, v) {
+            (Self::Flag, HpValue::Flag(v)) => Ok(if *v { 1.0 } else { 0.0 }),
+            (Self::Choice { choices, .. }, HpValue::Choice(v)) => choices
+                .iter()
+                .position(|c| c == v)
+                .map(|i| i as f64)
+                .ok_or_else(|| anyhow::anyhow!("unknown choice: {:?}", v)),
+            (
+                Self::Range {
+                    start,
+                    end,
+                    ln: false,
+                    step: None,
+                    fidelity: true,
+                },
+                HpValue::Range(v),
+            ) => Ok((v - start) / (end - start)),
+            (
+                Self::Range {
+                    start,
+                    end,
+                    ln: true,
+                    step: None,
+                    fidelity: true,
+                },
+                HpValue::Range(v),
+            ) => Ok((v.ln() - start.ln()) / (end.ln() - start.ln())),
+            (
+                Self::Range {
+                    ln: false,
+                    step: None,
+                    fidelity: false,
+                    ..
+                },
+                HpValue::Range(v),
+            ) => Ok(*v),
+            (
+                Self::Range {
+                    ln: true,
+                    step: None,
+                    fidelity: false,
+                    ..
+                },
+                HpValue::Range(v),
+            ) => Ok(v.ln()),
+            (
+                Self::Range {
+                    start,
+                    ln: false,
+                    step: Some(s),
+                    ..
+                },
+                HpValue::Range(v),
+            ) => Ok(((v - start) / s).floor()),
+            (
+                Self::Range {
+                    start,
+                    ln: true,
+                    step: Some(s),
+                    ..
+                },
+                HpValue::Range(v),
+            ) => Ok(((v.ln() - start.ln()) / s).floor()),
+            (Self::Normal { .. }, HpValue::Normal(_)) => todo!(),
+            _ => anyhow::bail!("[{}:{}] TODO", file!(), line!()),
+        }
+    }
+
     pub fn expand_if_need(&mut self, d: &Self) -> anyhow::Result<bool> {
         match (self, d) {
             (Self::Flag, Self::Flag) => Ok(false),
