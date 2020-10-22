@@ -53,23 +53,26 @@ pub struct AskReq {
 pub enum AskError {
     #[error("TODO")]
     RecvError,
+
+    #[error("TODO")]
+    InvalidRequest,
+}
+
+#[derive(Debug)]
+pub enum Message {
+    Ask {
+        req: AskReq,
+        reply: fibers::sync::oneshot::Sender<Result<HpValue, AskError>>,
+    },
 }
 
 #[derive(Debug)]
 pub struct Channel {
-    rx: fibers::sync::mpsc::Receiver<(
-        AskReq,
-        fibers::sync::oneshot::Sender<Result<HpValue, AskError>>,
-    )>,
+    rx: fibers::sync::mpsc::Receiver<Message>,
 }
 
 impl Channel {
-    pub fn try_recv(
-        &mut self,
-    ) -> Option<(
-        AskReq,
-        fibers::sync::oneshot::Sender<Result<HpValue, AskError>>,
-    )> {
+    pub fn try_recv(&mut self) -> Option<Message> {
         match self.rx.poll() {
             Err(()) => unreachable!(),
             Ok(Async::Ready(None)) => unreachable!(),
@@ -81,16 +84,13 @@ impl Channel {
 
 #[derive(Debug)]
 pub struct AskHandler {
-    tx: fibers::sync::mpsc::Sender<(
-        AskReq,
-        fibers::sync::oneshot::Sender<Result<HpValue, AskError>>,
-    )>,
+    tx: fibers::sync::mpsc::Sender<Message>,
 }
 
 impl fibers_rpc::server::HandleCall<AskRpc> for AskHandler {
     fn handle_call(&self, req: <AskRpc as Call>::Req) -> fibers_rpc::server::Reply<AskRpc> {
         let (tx, rx) = fibers::sync::oneshot::channel();
-        let _ = self.tx.send((req, tx));
+        let _ = self.tx.send(Message::Ask { req, reply: tx });
         fibers_rpc::server::Reply::future(
             rx.then(|result| Ok(result.unwrap_or_else(|_| Err(AskError::RecvError)))),
         )

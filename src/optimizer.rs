@@ -1,9 +1,36 @@
+use crate::hp;
 use crate::rng::ArcRng;
 use rand::Rng;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub struct SearchSpace {
-    pub params: Vec<Distribution>,
+    params: BTreeMap<String, hp::HpDistribution>,
+}
+
+impl SearchSpace {
+    pub fn new() -> Self {
+        Self {
+            params: BTreeMap::new(),
+        }
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.params.contains_key(name)
+    }
+
+    pub fn index(&self, name: &str) -> Option<usize> {
+        self.params.iter().position(|x| x.0 == name)
+    }
+
+    pub fn expand_if_need(&mut self, name: &str, d: &hp::HpDistribution) -> anyhow::Result<bool> {
+        if let Some(x) = self.params.get_mut(name) {
+            x.expand_if_need(d)
+        } else {
+            self.params.insert(name.to_owned(), d.clone());
+            Ok(true)
+        }
+    }
 }
 
 pub type ParamIndex = usize;
@@ -27,8 +54,65 @@ impl Distribution {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TrialId(pub usize);
+impl From<hp::HpDistribution> for Distribution {
+    fn from(f: hp::HpDistribution) -> Self {
+        match f {
+            hp::HpDistribution::Flag => Self::Categorical { size: 2 },
+            hp::HpDistribution::Choice {
+                choices,
+                ordinal: false,
+            } => Self::Categorical {
+                size: choices.len(),
+            },
+            hp::HpDistribution::Choice {
+                choices,
+                ordinal: true,
+            } => Self::Discrete {
+                size: choices.len(),
+            },
+            hp::HpDistribution::Normal { .. } => Self::Continuous { size: 1.0 },
+            hp::HpDistribution::Range {
+                start,
+                end,
+                ln: false,
+                step: None,
+                fidelity: false,
+            } => Self::Continuous { size: end - start },
+            hp::HpDistribution::Range {
+                start,
+                end,
+                ln: true,
+                step: None,
+                fidelity: false,
+            } => Self::Continuous {
+                size: end.ln() - start.ln(),
+            },
+            hp::HpDistribution::Range {
+                start,
+                end,
+                ln: false,
+                step: Some(n),
+                fidelity: false,
+            } => Self::Discrete {
+                size: ((end - start) / n) as usize,
+            },
+            hp::HpDistribution::Range {
+                start,
+                end,
+                ln: true,
+                step: Some(n),
+                fidelity: false,
+            } => Self::Discrete {
+                size: ((end.ln() - start.ln()) / n) as usize,
+            },
+            hp::HpDistribution::Range { fidelity: true, .. } => Self::Continuous { size: 1.0 },
+        }
+    }
+}
+
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub struct TrialId(pub usize);
+pub type TrialId = u64;
 
 #[derive(Debug, Clone)]
 pub struct EvaluatedTrial {

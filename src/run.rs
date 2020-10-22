@@ -1,5 +1,7 @@
 use crate::envvar;
+use crate::optimizer::Optimizer;
 use crate::rpc;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::process::{Child, Command};
@@ -30,10 +32,26 @@ impl RunOpt {
 }
 
 #[derive(Debug)]
+pub struct TrialState {
+    asked_params: HashMap<String, crate::hp::HpValue>,
+}
+
+impl TrialState {
+    pub fn new() -> Self {
+        Self {
+            asked_params: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Runner {
     options: RunOpt,
     server_addr: SocketAddr,
     channel: rpc::Channel,
+    optimizer: crate::optimizer::RandomOptimizer,
+    search_space: crate::optimizer::SearchSpace,
+    running_trials: HashMap<u64, TrialState>,
 }
 
 impl Runner {
@@ -44,28 +62,31 @@ impl Runner {
             options,
             server_addr,
             channel,
+            optimizer: crate::optimizer::RandomOptimizer::new(crate::rng::ArcRng::new(0)),
+            search_space: crate::optimizer::SearchSpace::new(),
+            running_trials: HashMap::new(),
         })
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
-        let mut optimizer = crate::optimizer::RandomOptimizer::new(crate::rng::ArcRng::new(0));
-        let mut workers: Vec<Child> = Vec::new();
+        let mut workers: Vec<(u64, Child)> = Vec::new();
         let mut trial_id = 0;
         while trial_id < self.options.repeat {
             if let Some(m) = self.channel.try_recv() {
-                eprintln!("RECV: {:?}", m);
-                continue;
+                self.handle_message(m)?;
             }
 
             while workers.len() < self.options.parallelism.get() {
-                workers.push(self.spawn_worker(trial_id)?);
+                workers.push((trial_id as u64, self.spawn_worker(trial_id)?));
                 eprintln!("New worker started: trial={}", trial_id);
+                self.running_trials
+                    .insert(trial_id as u64, TrialState::new());
                 trial_id += 1;
             }
 
             let mut i = 0;
             while i < workers.len() {
-                match workers[i].try_wait() {
+                match workers[i].1.try_wait() {
                     Err(e) => todo!("{}", e),
                     Ok(None) => {
                         i += 1;
@@ -73,7 +94,8 @@ impl Runner {
                     Ok(status) => {
                         // TODO: tell
                         eprintln!("Worker finished: {:?}", status);
-                        workers.swap_remove(i);
+                        let (trial_id, _) = workers.swap_remove(i);
+                        self.running_trials.remove(&trial_id);
                     }
                 }
             }
@@ -81,6 +103,54 @@ impl Runner {
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         Ok(())
+    }
+
+    fn handle_message(&mut self, m: rpc::Message) -> anyhow::Result<()> {
+        match m {
+            rpc::Message::Ask { req, reply } => {
+                let value = self.handle_ask(req)?;
+                let _ = reply.send(value);
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_ask(
+        &mut self,
+        req: rpc::AskReq,
+    ) -> anyhow::Result<Result<crate::hp::HpValue, rpc::AskError>> {
+        let trial = if let Some(trial) = self.running_trials.get_mut(&req.trial_id) {
+            trial
+        } else {
+            return Ok(Err(rpc::AskError::InvalidRequest));
+        };
+        if let Some(value) = trial.asked_params.get(&req.param_name) {
+            if req.distribution.is_some() {
+                // TODO: Error if req.distribution doesn't contain the value.
+            }
+            return Ok(Ok(value.clone()));
+        } else if req.distribution.is_none() {
+            return Ok(Err(rpc::AskError::InvalidRequest));
+        }
+
+        let hp_distribution = req.distribution.expect("unreachable");
+        let is_expanded = self
+            .search_space
+            .expand_if_need(&req.param_name, &hp_distribution)?;
+        if is_expanded {
+            self.optimizer.initialize(&self.search_space)?;
+            // TODO: tell trials
+        }
+
+        let distribution = crate::optimizer::Distribution::from(hp_distribution);
+
+        let param_index = self
+            .search_space
+            .index(&req.param_name)
+            .expect("unreachable");
+        self.optimizer
+            .ask(req.trial_id, param_index, distribution)?;
+        todo!()
     }
 
     fn spawn_worker(&mut self, trial_id: usize) -> anyhow::Result<Child> {
