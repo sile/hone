@@ -39,4 +39,6 @@ pub enum ParamValueSpec {
         mean: f64,
         stddev: f64,
     },
+    // Unique number among trials within the same study except for the multi-fidelity case.
+    RandomSeed,
 }
