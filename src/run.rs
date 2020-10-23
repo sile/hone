@@ -133,11 +133,13 @@ impl Runner {
                         i += 1;
                     }
                     Ok(status) => {
-                        // TODO: tell
                         eprintln!("Worker finished: {:?}", status);
                         let (trial_id, _) = workers.swap_remove(i);
                         let mut trial = self.running_trials.remove(&trial_id).expect("unreachable");
                         trial.failed = !status.map_or(true, |s| s.success());
+                        self.optimizer.tell(
+                            &trial.to_evaluated_trial(&self.search_space, &self.objective_space)?,
+                        )?;
                         self.evaluated_trials.push(trial);
                     }
                 }
@@ -163,7 +165,28 @@ impl Runner {
     }
 
     fn handle_tell(&mut self, req: rpc::TellReq) -> anyhow::Result<Result<(), rpc::TellError>> {
-        todo!()
+        let trial = self
+            .running_trials
+            .get_mut(&req.trial_id)
+            .expect("TODO: unreachable");
+        trial.values.insert(req.value_name.clone(), req.value);
+
+        let is_expanded = self.objective_space.expand_if_need(
+            &req.value_name,
+            &optimizer::ValueDomain {
+                minimize: req.minimize,
+            },
+        )?;
+        if is_expanded {
+            self.optimizer
+                .initialize(&self.search_space, &self.objective_space)?;
+            for t in &self.evaluated_trials {
+                self.optimizer
+                    .tell(&t.to_evaluated_trial(&self.search_space, &self.objective_space)?)?;
+            }
+        }
+
+        Ok(Ok(()))
     }
 
     fn handle_ask(
@@ -224,100 +247,3 @@ impl Runner {
         Ok(child)
     }
 }
-
-// use crate::config::Config;
-// use crate::optimizer::RandomOptimizer;
-// use crate::pubsub::PubSub;
-// use crate::study::{StudyServer, StudyServerHandle, TrialHandle};
-// use crate::{Error, Result};
-// use structopt::StructOpt;
-// use uuid::Uuid;
-
-// #[derive(Debug, StructOpt)]
-// pub struct RunOpt {
-//     #[structopt(long)]
-//     pub study: Option<String>,
-
-//     #[structopt(long, default_value = "1")]
-//     pub repeats: usize,
-//     // timeout, search-space, parallelism
-//     pub command: String,
-//     pub args: Vec<String>,
-// }
-
-// #[derive(Debug)]
-// pub struct Runner {
-//     opt: RunOpt,
-//     config: Config,
-
-//     study_name: String,
-// }
-
-// impl Runner {
-//     pub fn new(opt: RunOpt, config: Config) -> Result<Self> {
-//         let study_name = if let Some(name) = &opt.study {
-//             name.clone()
-//         } else {
-//             Uuid::new_v4().to_string()
-//         };
-//         Ok(Self {
-//             opt,
-//             config,
-//             study_name,
-//         })
-//     }
-
-//     pub fn run(mut self) -> Result<()> {
-//         eprintln!("[HONE] Study Name: {}", self.study_name);
-//         let data_dir = track!(self.config.data_dir())?;
-//         let pubsub = PubSub::new(data_dir);
-//         let study = track!(StudyServer::new(
-//             self.study_name.clone(),
-//             pubsub,
-//             RandomOptimizer::new()
-//         ))?;
-//         let server_addr = track!(study.addr())?;
-//         eprintln!("[HONE] Server Address: {}", server_addr);
-
-//         let handle = study.spawn();
-
-//         for _ in 0..self.opt.repeats {
-//             track!(self.run_once(&handle))?;
-//         }
-//         Ok(())
-//     }
-
-//     fn run_once(&mut self, handle: &StudyServerHandle) -> Result<()> {
-//         let trial = track!(handle.start_trial())?;
-//         let child = track!(Command::new(&self.opt.command)
-//             .args(&self.opt.args)
-//             .spawn()
-//             .map_err(Error::from))?;
-//         eprintln!("[HONE] Spawn child process(pid={})", child.id());
-//         let mut trial = Trial::new(child, trial);
-//         let status = track!(trial.child.wait().map_err(Error::from))?;
-//         eprintln!("[HONE] Child process finished: {:?}", status);
-
-//         Ok(())
-//     }
-// }
-
-// #[derive(Debug)]
-// struct Trial {
-//     child: Child,
-//     handle: TrialHandle,
-// }
-
-// impl Trial {
-//     fn new(child: Child, handle: TrialHandle) -> Self {
-//         Self { child, handle }
-//     }
-// }
-
-// impl Drop for Trial {
-//     fn drop(&mut self) {
-//         if self.child.kill().is_ok() {
-//             let _ = self.child.wait(); // for preventing the child process becomes a zombie.
-//         }
-//     }
-// }
