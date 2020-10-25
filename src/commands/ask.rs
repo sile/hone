@@ -1,3 +1,5 @@
+use crate::envvar;
+
 #[derive(Debug, structopt::StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct AskOpt {
@@ -12,6 +14,7 @@ pub struct AskOpt {
 
 impl AskOpt {
     pub fn ask(&self) -> anyhow::Result<String> {
+        let trial_id = envvar::get_trial_id()?;
         todo!()
     }
 }
@@ -39,6 +42,4 @@ pub enum ParamValueSpec {
         mean: f64,
         stddev: f64,
     },
-    // Unique number among trials within the same study except for the multi-fidelity case.
-    RandomSeed,
 }
