@@ -1,7 +1,8 @@
-use crate::trial::TrialId;
+use crate::trial::{ObservationId, TrialId};
 
 pub const KEY_SERVER_ADDR: &str = "HONE_SERVER_ADDR";
 pub const KEY_TRIAL_ID: &str = "HONE_TRIAL_ID";
+pub const KEY_OBSERVATION_ID: &str = "HONE_OBSERVATION_ID";
 
 pub fn get_trial_id() -> Result<TrialId, EnvVarError> {
     let value =
@@ -10,6 +11,15 @@ pub fn get_trial_id() -> Result<TrialId, EnvVarError> {
         .parse()
         .map_err(|e| EnvVarError::from_other_error(KEY_TRIAL_ID, e))?;
     Ok(TrialId::new(id))
+}
+
+pub fn get_observation_id() -> Result<ObservationId, EnvVarError> {
+    let value = std::env::var(KEY_OBSERVATION_ID)
+        .map_err(|e| EnvVarError::from_var_error(KEY_OBSERVATION_ID, e))?;
+    let id = value
+        .parse()
+        .map_err(|e| EnvVarError::from_other_error(KEY_OBSERVATION_ID, e))?;
+    Ok(ObservationId::new(id))
 }
 
 #[derive(Debug, thiserror::Error)]

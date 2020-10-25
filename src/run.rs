@@ -54,7 +54,7 @@ impl TrialState {
         &self,
         ss: &optimizer::SearchSpace,
         os: &optimizer::ObjectiveSpace,
-    ) -> anyhow::Result<optimizer::EvaluatedTrial> {
+    ) -> anyhow::Result<optimizer::Observation> {
         let mut params = Vec::new();
         for (name, distribution) in ss.params.iter() {
             if let Some(v) = self.params.get(name) {
@@ -73,11 +73,12 @@ impl TrialState {
             }
         }
 
-        Ok(optimizer::EvaluatedTrial {
-            trial_id: self.trial_id,
-            params,
-            values: if self.failed { None } else { Some(values) },
-        })
+        // Ok(optimizer::EvaluatedTrial {
+        //     trial_id: self.trial_id,
+        //     params,
+        //     values: if self.failed { None } else { Some(values) },
+        // })
+        todo!()
     }
 }
 
@@ -226,15 +227,16 @@ impl Runner {
             .search_space
             .index(&req.param_name)
             .expect("unreachable");
-        let param_value = self
-            .optimizer
-            .ask(req.trial_id, param_index, distribution)?;
-        let param_value = self.search_space.unwarp(&req.param_name, param_value)?;
-        trial
-            .params
-            .insert(req.param_name.clone(), param_value.clone());
+        todo!()
+        // let param_value = self
+        //     .optimizer
+        //     .ask(req.trial_id, param_index, distribution)?;
+        // let param_value = self.search_space.unwarp(&req.param_name, param_value)?;
+        // trial
+        //     .params
+        //     .insert(req.param_name.clone(), param_value.clone());
 
-        Ok(Ok(param_value))
+        // Ok(Ok(param_value))
     }
 
     fn spawn_worker(&mut self, trial_id: usize) -> anyhow::Result<Child> {

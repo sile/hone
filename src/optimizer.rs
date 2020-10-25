@@ -1,5 +1,6 @@
 use crate::hp;
 use crate::rng::ArcRng;
+use crate::trial::{ObservationId, TrialId};
 use rand::Rng;
 use std::collections::BTreeMap;
 
@@ -154,13 +155,9 @@ impl From<hp::HpDistribution> for Distribution {
     }
 }
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub struct TrialId(pub usize);
-pub type TrialId = u64;
-
 #[derive(Debug, Clone)]
-pub struct EvaluatedTrial {
-    pub trial_id: TrialId,
+pub struct Observation {
+    pub id: ObservationId,
     pub params: Vec<f64>,
     pub values: Option<Vec<f64>>, // `None` means it's a failed trial
 }
@@ -172,14 +169,18 @@ pub trait Optimizer {
         objective_space: &ObjectiveSpace,
     ) -> anyhow::Result<()>;
 
+    fn next_trial(&mut self) -> Option<TrialId> {
+        None
+    }
+
     fn ask(
         &mut self,
-        trial_id: TrialId,
+        obs_id: ObservationId,
         param: ParamIndex,
         distribution: Distribution,
     ) -> anyhow::Result<f64>;
 
-    fn tell(&mut self, trial: &EvaluatedTrial) -> anyhow::Result<()>;
+    fn tell(&mut self, obs: &Observation) -> anyhow::Result<()>;
 }
 
 #[derive(Debug)]
@@ -204,7 +205,7 @@ impl Optimizer for RandomOptimizer {
 
     fn ask(
         &mut self,
-        _trial_id: TrialId,
+        _obs_id: ObservationId,
         _param: ParamIndex,
         distribution: Distribution,
     ) -> anyhow::Result<f64> {
@@ -215,7 +216,7 @@ impl Optimizer for RandomOptimizer {
         }
     }
 
-    fn tell(&mut self, _trial: &EvaluatedTrial) -> anyhow::Result<()> {
+    fn tell(&mut self, _obs: &Observation) -> anyhow::Result<()> {
         Ok(())
     }
 }
