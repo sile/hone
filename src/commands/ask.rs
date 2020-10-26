@@ -42,11 +42,4 @@ pub enum ParamValueSpec {
         mean: f64,
         stddev: f64,
     },
-    RandomSeed {
-        #[structopt(long, default_value = "0")]
-        min: u64,
-
-        #[structopt(long, default_value = "4294967295")]
-        max: u64,
-    },
 }

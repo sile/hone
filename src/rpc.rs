@@ -1,5 +1,6 @@
 use crate::envvar;
 use crate::hp::{HpDistribution, HpValue};
+use crate::trial::ObservationId;
 use bytecodec::bincode_codec::{BincodeDecoder, BincodeEncoder};
 use fibers_rpc::client::ClientServiceBuilder;
 use fibers_rpc::server::ServerBuilder;
@@ -17,7 +18,7 @@ where
     RPC::ReqEncoder: Default,
     RPC::ResDecoder: Default,
 {
-    let server_addr: SocketAddr = std::env::var(envvar::KEY_SERVER_ADDR)?.parse()?;
+    let server_addr = envvar::get_server_addr()?;
     let service = ClientServiceBuilder::new().finish(fibers_global::handle());
     let service_handle = service.handle();
     fibers_global::spawn(service.map_err(|e| panic!("{}", e)));
@@ -44,7 +45,7 @@ impl Call for AskRpc {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AskReq {
-    pub trial_id: u64,
+    pub obs_id: ObservationId,
     pub param_name: String,
     pub distribution: Option<HpDistribution>,
 }

@@ -1,4 +1,3 @@
-use crate::envvar;
 use crate::hp;
 use crate::rpc;
 use anyhow::bail;
@@ -21,30 +20,31 @@ pub struct HpOpt {
 
 impl HpOpt {
     pub fn ask(&self) -> anyhow::Result<String> {
-        let trial_id = std::env::var(envvar::KEY_TRIAL_ID)?.parse()?;
-        let req = rpc::AskReq {
-            trial_id,
-            param_name: self.spec.name.clone(),
-            distribution: self.spec.distribution.clone(),
-        };
-        let res = rpc::call::<rpc::AskRpc>(req)??;
-        let value = if self.arg {
-            match res {
-                HpValue::Flag(false) => format!(""),
-                HpValue::Flag(true) => format!("--{}", self.spec.name),
-                HpValue::Choice(v) => format!("--{}={:?}", self.spec.name, v),
-                HpValue::Range(v) => format!("--{}={}", self.spec.name, v),
-                HpValue::Normal(v) => format!("--{}={}", self.spec.name, v),
-            }
-        } else {
-            match res {
-                HpValue::Flag(v) => v.to_string(),
-                HpValue::Choice(v) => v,
-                HpValue::Range(v) => v.to_string(),
-                HpValue::Normal(v) => v.to_string(),
-            }
-        };
-        Ok(value)
+        // let trial_id = std::env::var(envvar::KEY_TRIAL_ID)?.parse()?;
+        // let req = rpc::AskReq {
+        //     trial_id,
+        //     param_name: self.spec.name.clone(),
+        //     distribution: self.spec.distribution.clone(),
+        // };
+        // let res = rpc::call::<rpc::AskRpc>(req)??;
+        // let value = if self.arg {
+        //     match res {
+        //         HpValue::Flag(false) => format!(""),
+        //         HpValue::Flag(true) => format!("--{}", self.spec.name),
+        //         HpValue::Choice(v) => format!("--{}={:?}", self.spec.name, v),
+        //         HpValue::Range(v) => format!("--{}={}", self.spec.name, v),
+        //         HpValue::Normal(v) => format!("--{}={}", self.spec.name, v),
+        //     }
+        // } else {
+        //     match res {
+        //         HpValue::Flag(v) => v.to_string(),
+        //         HpValue::Choice(v) => v,
+        //         HpValue::Range(v) => v.to_string(),
+        //         HpValue::Normal(v) => v.to_string(),
+        //     }
+        // };
+        // Ok(value)
+        todo!()
     }
 }
 

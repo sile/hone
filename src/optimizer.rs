@@ -4,6 +4,8 @@ use crate::trial::{ObservationId, TrialId};
 use rand::Rng;
 use std::collections::BTreeMap;
 
+pub mod domain;
+
 #[derive(Debug, Clone)]
 pub struct ValueDomain {
     pub minimize: bool,

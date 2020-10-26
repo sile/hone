@@ -194,7 +194,7 @@ impl Runner {
         &mut self,
         req: rpc::AskReq,
     ) -> anyhow::Result<Result<crate::hp::HpValue, rpc::AskError>> {
-        let trial = if let Some(trial) = self.running_trials.get_mut(&req.trial_id) {
+        let trial = if let Some(trial) = self.running_trials.get_mut(&req.obs_id.get()) {
             trial
         } else {
             return Ok(Err(rpc::AskError::InvalidRequest));

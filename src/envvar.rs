@@ -1,8 +1,18 @@
 use crate::trial::{ObservationId, TrialId};
+use std::net::SocketAddr;
 
 pub const KEY_SERVER_ADDR: &str = "HONE_SERVER_ADDR";
 pub const KEY_TRIAL_ID: &str = "HONE_TRIAL_ID";
 pub const KEY_OBSERVATION_ID: &str = "HONE_OBSERVATION_ID";
+
+pub fn get_server_addr() -> Result<SocketAddr, EnvVarError> {
+    let value = std::env::var(KEY_SERVER_ADDR)
+        .map_err(|e| EnvVarError::from_var_error(KEY_SERVER_ADDR, e))?;
+    let server_addr: SocketAddr = value
+        .parse()
+        .map_err(|e| EnvVarError::from_other_error(KEY_SERVER_ADDR, e))?;
+    Ok(server_addr)
+}
 
 pub fn get_trial_id() -> Result<TrialId, EnvVarError> {
     let value =
