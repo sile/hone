@@ -4,6 +4,10 @@ pub struct SearchDomain {
 }
 
 impl SearchDomain {
+    pub fn new(params: Vec<ParamDef>) -> Self {
+        Self { params }
+    }
+
     pub fn params(&self) -> &[ParamDef] {
         &self.params
     }
@@ -19,6 +23,10 @@ pub struct ObjectiveDomain {
 }
 
 impl ObjectiveDomain {
+    pub fn new(objectives: usize) -> Self {
+        Self { objectives }
+    }
+
     pub fn dimensions(&self) -> usize {
         self.objectives
     }
