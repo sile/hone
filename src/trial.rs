@@ -1,3 +1,9 @@
+#[derive(Debug, Clone)]
+pub struct Trial {
+    pub id: TrialId,
+    // TODO: tempdir
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -16,9 +22,9 @@ impl TrialId {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct ObservationId(u64);
+pub struct RunId(u64);
 
-impl ObservationId {
+impl RunId {
     pub const fn new(id: u64) -> Self {
         Self(id)
     }

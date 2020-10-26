@@ -1,28 +1,28 @@
 #[derive(Debug)]
-pub struct SearchDomain {
-    params: Vec<ParamDef>,
+pub struct SearchSpace {
+    param_types: Vec<ParamType>,
 }
 
-impl SearchDomain {
-    pub fn new(params: Vec<ParamDef>) -> Self {
-        Self { params }
+impl SearchSpace {
+    pub fn new(param_types: Vec<ParamType>) -> Self {
+        Self { param_types }
     }
 
-    pub fn params(&self) -> &[ParamDef] {
-        &self.params
+    pub fn param_types(&self) -> &[ParamType] {
+        &self.param_types
     }
 
     pub fn dimensions(&self) -> usize {
-        self.params.len()
+        self.param_types.len()
     }
 }
 
 #[derive(Debug)]
-pub struct ObjectiveDomain {
+pub struct ObjectiveSpace {
     objectives: usize,
 }
 
-impl ObjectiveDomain {
+impl ObjectiveSpace {
     pub fn new(objectives: usize) -> Self {
         Self { objectives }
     }
@@ -33,9 +33,11 @@ impl ObjectiveDomain {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum ParamDef {
+pub enum ParamType {
     Continuous { size: f64 },
     Discrete { size: usize },
     Categorical { size: usize },
     Fidelity,
 }
+
+pub type ParamIndex = usize;
