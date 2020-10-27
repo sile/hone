@@ -1,6 +1,6 @@
 use crate::envvar;
 use crate::hp::{HpDistribution, HpValue};
-use crate::trial::ObservationId;
+use crate::trial::RunId;
 use bytecodec::bincode_codec::{BincodeDecoder, BincodeEncoder};
 use fibers_rpc::client::ClientServiceBuilder;
 use fibers_rpc::server::ServerBuilder;
@@ -45,7 +45,7 @@ impl Call for AskRpc {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AskReq {
-    pub obs_id: ObservationId,
+    pub run_id: RunId,
     pub param_name: String,
     pub distribution: Option<HpDistribution>,
 }

@@ -6,34 +6,27 @@ use std::collections::BTreeMap;
 
 mod space;
 
+#[derive(Debug)]
+pub struct Run {
+    pub id: RunId,
+    pub trial: Trial,
+    pub asked_params: BTreeMap<ParamIndex, f64>,
+}
+
 pub use self::space::{ObjectiveSpace, ParamIndex, ParamType, SearchSpace};
 
 pub trait Optimizer {
-    fn reset(
-        &mut self,
-        search_space: &SearchSpace,
-        objective_space: &ObjectiveSpace,
-    ) -> anyhow::Result<()>;
+    fn update_search_space(&mut self, search_space: &SearchSpace) -> anyhow::Result<()>;
+
+    fn update_objective_space(&mut self, objective_space: &ObjectiveSpace) -> anyhow::Result<()>;
 
     fn resume(&mut self, run_id: RunId) -> Option<Trial> {
         None
     }
 
-    fn ask(
-        &mut self,
-        run_id: RunId,
-        trial: &Trial,
-        asked_param: ParamIndex,
-        fixed_params: BTreeMap<ParamIndex, f64>,
-    ) -> anyhow::Result<f64>;
+    fn ask(&mut self, run: &Run, param_idx: ParamIndex) -> anyhow::Result<f64>;
 
-    fn tell(
-        &mut self,
-        run_id: RunId,
-        trial: &Trial,
-        params: &[f64],
-        values: Option<&[f64]>,
-    ) -> anyhow::Result<()>;
+    fn tell(&mut self, run: &Run, values: Option<&[f64]>) -> anyhow::Result<()>;
 }
 
 // #[derive(Debug)]

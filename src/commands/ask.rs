@@ -14,7 +14,7 @@ pub struct AskOpt {
 
 impl AskOpt {
     pub fn ask(&self) -> anyhow::Result<String> {
-        let obs_id = envvar::get_observation_id()?;
+        let run_id = envvar::get_run_id()?;
         todo!()
     }
 }

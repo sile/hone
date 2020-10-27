@@ -6,7 +6,7 @@ pub struct TellOpt {
     #[structopt(long)]
     pub name: Option<String>,
     #[structopt(long)]
-    pub maximize: bool,
+    pub maximize: bool, // TODO: minimize | maximize | nooptimize
 
     pub value: f64,
 }
