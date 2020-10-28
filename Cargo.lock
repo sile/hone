@@ -244,6 +244,7 @@ dependencies = [
  "fibers_global",
  "fibers_rpc",
  "futures",
+ "ordered-float",
  "rand",
  "serde",
  "serde_json",

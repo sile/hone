@@ -89,8 +89,8 @@ pub struct Runner {
     server_addr: SocketAddr,
     channel: rpc::Channel,
     //optimizer: crate::optimizer::RandomOptimizer,
-    search_space: crate::optimizer::SearchSpace,
-    objective_space: crate::optimizer::ObjectiveSpace,
+    //search_space: crate::optimizer::SearchSpace,
+    //objective_space: crate::optimizer::ObjectiveSpace,
     running_trials: BTreeMap<u64, TrialState>,
     evaluated_trials: Vec<TrialState>,
 }
