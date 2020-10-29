@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod domain;
 pub mod envvar;
 pub mod hp;
 pub mod optimizer;
