@@ -1,7 +1,7 @@
 #[derive(Debug)]
 pub struct SearchSpace {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum ParamType {
     Str { ty: StrParamType },
     Num { ty: NumParamType, fidelity: bool },
@@ -42,21 +42,30 @@ impl ParamType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum StrParamType {
     Categorical { choices: Vec<String> },
     Ordinal { choices: Vec<String> },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum NumParamType {
     Continous { start: f64, end: f64, ln: bool },
     Discrete { start: f64, end: f64, step: f64 },
     Normal { mean: f64, stddev: f64 },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum ParamValue {
     Str(String),
     Num(f64),
+}
+
+impl std::fmt::Display for ParamValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Str(v) => write!(f, "{}", v),
+            Self::Num(v) => write!(f, "{}", v),
+        }
+    }
 }

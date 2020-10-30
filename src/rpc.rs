@@ -1,5 +1,5 @@
+use crate::domain::{ParamType, ParamValue};
 use crate::envvar;
-use crate::hp::{HpDistribution, HpValue};
 use crate::trial::RunId;
 use bytecodec::bincode_codec::{BincodeDecoder, BincodeEncoder};
 use fibers_rpc::client::ClientServiceBuilder;
@@ -38,7 +38,7 @@ impl Call for AskRpc {
     type ReqEncoder = BincodeEncoder<Self::Req>;
     type ReqDecoder = BincodeDecoder<Self::Req>;
 
-    type Res = Result<HpValue, AskError>;
+    type Res = Result<ParamValue, AskError>;
     type ResEncoder = BincodeEncoder<Self::Res>;
     type ResDecoder = BincodeDecoder<Self::Res>;
 }
@@ -47,7 +47,7 @@ impl Call for AskRpc {
 pub struct AskReq {
     pub run_id: RunId,
     pub param_name: String,
-    pub distribution: Option<HpDistribution>,
+    pub param_type: ParamType,
 }
 
 #[derive(Debug, Serialize, Deserialize, thiserror::Error)]
@@ -96,7 +96,7 @@ pub enum TellError {
 pub enum Message {
     Ask {
         req: AskReq,
-        reply: fibers::sync::oneshot::Sender<Result<HpValue, AskError>>,
+        reply: fibers::sync::oneshot::Sender<Result<ParamValue, AskError>>,
     },
     Tell {
         req: TellReq,

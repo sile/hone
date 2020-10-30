@@ -1,5 +1,6 @@
 use crate::domain::ParamType;
 use crate::envvar;
+use crate::rpc;
 
 #[derive(Debug, structopt::StructOpt)]
 #[structopt(rename_all = "kebab-case")]
@@ -17,7 +18,22 @@ impl AskOpt {
     pub fn ask(&self) -> anyhow::Result<String> {
         let run_id = envvar::get_run_id()?;
         let param_type = self.param_spec.to_param_type()?;
-        todo!()
+        let req = rpc::AskReq {
+            run_id,
+            param_name: self.param_name.clone(),
+            param_type,
+        };
+        let res = rpc::call::<rpc::AskRpc>(req)??;
+        let v = res.to_string();
+        if self.long_option {
+            if matches!(self.param_spec, ParamSpec::Bool) && v == "true" {
+                Ok(format!("--{}", self.param_name))
+            } else {
+                Ok(format!("--{}={:?}", self.param_name, v))
+            }
+        } else {
+            Ok(v)
+        }
     }
 }
 
