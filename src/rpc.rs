@@ -1,4 +1,4 @@
-use crate::domain::{ParamType, ParamValue};
+use crate::domain::{ObjectiveType, ObjectiveValue, ParamType, ParamValue};
 use crate::envvar;
 use crate::trial::RunId;
 use bytecodec::bincode_codec::{BincodeDecoder, BincodeEncoder};
@@ -77,10 +77,10 @@ impl Call for TellRpc {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TellReq {
-    pub trial_id: u64,
-    pub value_name: String,
-    pub minimize: bool,
-    pub value: f64,
+    pub run_id: RunId,
+    pub objective_name: String,
+    pub objective_type: ObjectiveType,
+    pub objective_value: ObjectiveValue,
 }
 
 #[derive(Debug, Serialize, Deserialize, thiserror::Error)]

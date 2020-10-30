@@ -1,3 +1,5 @@
+pub use crate::optimizer::domain::ObjectiveValue;
+
 #[derive(Debug)]
 pub struct SearchSpace {}
 
@@ -68,4 +70,11 @@ impl std::fmt::Display for ParamValue {
             Self::Num(v) => write!(f, "{}", v),
         }
     }
+}
+
+// TODO(?): s/Objective/Metric/
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ObjectiveType {
+    pub minimize: bool,
+    pub ignore: bool,
 }
