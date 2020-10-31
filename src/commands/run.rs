@@ -28,7 +28,8 @@ pub struct RunOpt {
 
 impl RunOpt {
     pub fn run(self) -> anyhow::Result<()> {
-        Runner::new(self)?.run()
+        todo!()
+        //Runner::new(self)?.run()
     }
 }
 
@@ -84,7 +85,7 @@ impl TrialState {
 
 #[derive(Debug)]
 pub struct Runner {
-    opt: RunOpt,
+    options: RunOpt,
     server_addr: SocketAddr,
     channel: rpc::Channel,
     //optimizer: crate::optimizer::RandomOptimizer,
@@ -94,15 +95,6 @@ pub struct Runner {
     evaluated_trials: Vec<TrialState>,
 }
 
-impl Runner {
-    pub fn new(opt: RunOpt) -> anyhow::Result<Self> {
-        todo!()
-    }
-
-    pub fn run(mut self) -> anyhow::Result<()> {
-        todo!()
-    }
-}
 // impl Runner {
 //     pub fn new(options: RunOpt) -> anyhow::Result<Self> {
 //         let (server_addr, channel) = rpc::spawn_rpc_server()?;

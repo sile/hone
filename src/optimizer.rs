@@ -32,4 +32,8 @@ pub trait Optimizer {
     fn tell(&mut self, run: &Run, values: Option<&[ObjectiveValue]>) -> anyhow::Result<()>;
 
     fn resume(&mut self, run_id: RunId) -> Option<Trial>;
+
+    // TODO(?): is_terminated or start_trial() -> New | Resume | Terminated
 }
+
+// TODO: queued-optimizer

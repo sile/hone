@@ -5,6 +5,8 @@ use structopt::StructOpt;
 enum Opt {
     Ask(hone::commands::ask::AskOpt),
     Tell(hone::commands::tell::TellOpt),
+    Run(hone::commands::run::RunOpt),
+    // TODO: Optim
 }
 
 fn main() -> anyhow::Result<()> {
@@ -18,6 +20,9 @@ fn main() -> anyhow::Result<()> {
         }
         Opt::Tell(opt) => {
             opt.tell()?;
+        }
+        Opt::Run(opt) => {
+            opt.run()?;
         }
     }
     Ok(())
