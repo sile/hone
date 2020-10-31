@@ -52,8 +52,8 @@ pub enum StrParamType {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum NumParamType {
-    Continous { start: f64, end: f64, ln: bool },
-    Discrete { start: f64, end: f64, step: f64 },
+    Continous { start: f64, end: f64, ln: bool }, // TODO: min/max
+    Discrete { start: f64, end: f64, step: f64 }, // TODO: min/max
     Normal { mean: f64, stddev: f64 },
 }
 

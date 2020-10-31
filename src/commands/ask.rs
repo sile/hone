@@ -64,6 +64,7 @@ pub enum ParamSpec {
 
 impl ParamSpec {
     fn to_param_type(&self) -> anyhow::Result<ParamType> {
+        // TODO: empty choice check
         match self {
             Self::Bool => Ok(ParamType::categorical(vec![
                 "false".to_owned(),

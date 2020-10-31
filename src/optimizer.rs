@@ -6,10 +6,18 @@ pub mod domain;
 pub mod optimizers;
 
 #[derive(Debug, Clone)]
+pub struct Observation {
+    pub id: usize,
+    pub trial: Trial,
+    pub fixed_params: BTreeMap<ParamNo, ParamValue>,
+    pub metrics: BTreeMap<String, f64>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Run {
     pub id: RunId,
     pub trial: Trial,
-    pub asked_params: BTreeMap<ParamNo, ParamValue>,
+    pub fixed_params: BTreeMap<ParamNo, ParamValue>,
 }
 
 impl Run {
@@ -17,7 +25,7 @@ impl Run {
         Self {
             id,
             trial,
-            asked_params: BTreeMap::new(),
+            fixed_params: BTreeMap::new(),
         }
     }
 }
