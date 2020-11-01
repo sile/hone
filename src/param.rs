@@ -30,29 +30,150 @@ pub enum ParamType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StrParamType {
-    Categorical { choices: NonEmptyVec<String> },
-    Ordinal { choices: NonEmptyVec<String> },
+    Categorical(CategoricalParamType),
+    Ordinal(OrdinalParamType),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct CategoricalParamType {
+    choices: NonEmptyVec<String>,
+}
+
+impl CategoricalParamType {
+    pub fn new(choices: Vec<String>) -> anyhow::Result<Self> {
+        Ok(Self {
+            choices: NonEmptyVec::new(choices)?,
+        })
+    }
+
+    pub fn choices(&self) -> &NonEmptyVec<String> {
+        &self.choices
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct OrdinalParamType {
+    choices: NonEmptyVec<String>,
+}
+
+impl OrdinalParamType {
+    pub fn new(choices: Vec<String>) -> anyhow::Result<Self> {
+        Ok(Self {
+            choices: NonEmptyVec::new(choices)?,
+        })
+    }
+
+    pub fn choices(&self) -> &NonEmptyVec<String> {
+        &self.choices
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NumParamType {
-    Continous {
-        range: InclusiveRange,
-        ln: bool,
-    },
-    Discrete {
-        range: InclusiveRange,
-        step: NonNegF64,
-    },
-    Normal {
-        mean: FiniteF64,
-        stddev: NonNegF64,
-    },
-    Fidelity {
-        range: InclusiveRange,
-        step: Option<NonNegF64>,
-    },
+    Continous(ContinousParamType),
+    Discrete(DiscreteParamType),
+    Normal(NormalParamType),
+    Fidelity(FidelityParamType),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")] // TOOD: try_from UncheckedContinousParamType
+pub struct ContinousParamType {
+    range: InclusiveRange,
+    ln: bool,
+}
+
+impl ContinousParamType {
+    pub fn new(min: f64, max: f64, ln: bool) -> anyhow::Result<Self> {
+        let range = InclusiveRange::new(min, max)?;
+        if ln {
+            anyhow::ensure!(range.min().is_sign_positive(), "TODO");
+        }
+        Ok(Self { range, ln })
+    }
+
+    pub const fn range(&self) -> InclusiveRange {
+        self.range
+    }
+
+    pub const fn ln(&self) -> bool {
+        self.ln
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct NormalParamType {
+    mean: FiniteF64,
+    stddev: NonNegF64,
+}
+
+impl NormalParamType {
+    pub fn new(mean: f64, stddev: f64) -> anyhow::Result<Self> {
+        Ok(Self {
+            mean: FiniteF64::new(mean)?,
+            stddev: NonNegF64::new(stddev)?,
+        })
+    }
+
+    pub const fn mean(&self) -> FiniteF64 {
+        self.mean
+    }
+
+    pub const fn stddev(&self) -> NonNegF64 {
+        self.stddev
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DiscreteParamType {
+    range: InclusiveRange,
+    step: NonNegF64,
+}
+
+impl DiscreteParamType {
+    pub fn new(min: f64, max: f64, step: f64) -> anyhow::Result<Self> {
+        Ok(Self {
+            range: InclusiveRange::new(min, max)?,
+            step: NonNegF64::new(step)?,
+        })
+    }
+
+    pub const fn range(&self) -> InclusiveRange {
+        self.range
+    }
+
+    pub const fn step(&self) -> NonNegF64 {
+        self.step
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct FidelityParamType {
+    range: InclusiveRange,
+    step: Option<NonNegF64>,
+}
+
+impl FidelityParamType {
+    pub fn new(min: f64, max: f64, step: Option<f64>) -> anyhow::Result<Self> {
+        Ok(Self {
+            range: InclusiveRange::new(min, max)?,
+            step: step.map(|step| NonNegF64::new(step)).transpose()?,
+        })
+    }
+
+    pub const fn range(&self) -> InclusiveRange {
+        self.range
+    }
+
+    pub const fn step(&self) -> Option<NonNegF64> {
+        self.step
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,25 +191,3 @@ impl std::fmt::Display for ParamValue {
         }
     }
 }
-
-// TODO: delete
-// #[derive(Debug, Clone, Copy)]
-// pub enum OptimParamType {
-//     Continuous { size: f64 },
-//     Discrete { size: usize },
-//     Categorical { size: usize },
-//     Fidelity,
-// }
-
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-// pub struct OptimParamValue(FiniteF64);
-
-// impl OptimParamValue {
-//     pub fn new(value: f64) -> anyhow::Result<Self> {
-//         Ok(Self(FiniteF64::new(value)?))
-//     }
-
-//     pub const fn get(self) -> f64 {
-//         self.0.get()
-//     }
-// }

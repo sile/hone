@@ -65,10 +65,12 @@ impl InclusiveRange {
     }
 
     pub const fn max(self) -> f64 {
+        // TODO: FiniteF64
         self.max
     }
 
     pub fn width(self) -> f64 {
+        // TODO: FiniteF64
         self.max - self.min
     }
 }
@@ -93,8 +95,8 @@ pub struct NonNegF64(OrderedFloat<f64>);
 
 impl NonNegF64 {
     pub fn new(x: f64) -> anyhow::Result<Self> {
-        anyhow::ensure!(x.is_finite(), "`x`({}) isn't a finite number", x);
-        anyhow::ensure!(x.is_sign_positive(), "`x`({}) isn't a positive number", x);
+        anyhow::ensure!(x.is_finite(), "{} isn't a finite number", x);
+        anyhow::ensure!(x.is_sign_positive(), "{} isn't a positive number", x);
         Ok(Self(OrderedFloat(x)))
     }
 
@@ -117,7 +119,7 @@ pub struct FiniteF64(OrderedFloat<f64>);
 
 impl FiniteF64 {
     pub fn new(x: f64) -> anyhow::Result<Self> {
-        anyhow::ensure!(x.is_finite(), "`x`({}) isn't a finite number", x);
+        anyhow::ensure!(x.is_finite(), "{} isn't a finite number", x);
         Ok(Self(OrderedFloat(x)))
     }
 

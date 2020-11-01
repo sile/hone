@@ -1,6 +1,10 @@
 use crate::envvar;
-use crate::param::ParamType;
+use crate::param::{
+    CategoricalParamType, ContinousParamType, DiscreteParamType, FidelityParamType,
+    NormalParamType, NumParamType, OrdinalParamType, ParamName, ParamType, StrParamType,
+};
 use crate::rpc;
+use anyhow::Context;
 
 #[derive(Debug, structopt::StructOpt)]
 #[structopt(rename_all = "kebab-case")]
@@ -17,10 +21,13 @@ pub struct AskOpt {
 impl AskOpt {
     pub fn ask(&self) -> anyhow::Result<String> {
         let run_id = envvar::get_run_id()?;
-        let param_type = self.param_spec.to_param_type()?;
+        let param_type = self
+            .param_spec
+            .to_param_type()
+            .with_context(|| format!("the specification of {:?} is invalid", self.param_name))?;
         let req = rpc::AskReq {
             run_id,
-            param_name: self.param_name.clone(),
+            param_name: ParamName::new(self.param_name.clone()),
             param_type,
         };
         let res = rpc::call::<rpc::AskRpc>(req)??;
@@ -47,8 +54,8 @@ pub enum ParamSpec {
         ordinal: bool,
     },
     Range {
-        start: f64,
-        end: f64,
+        min: f64,
+        max: f64,
         #[structopt(long)]
         ln: bool,
         #[structopt(long)]
@@ -64,40 +71,62 @@ pub enum ParamSpec {
 
 impl ParamSpec {
     fn to_param_type(&self) -> anyhow::Result<ParamType> {
-        // TODO: empty choice check
         match self {
-            Self::Bool => Ok(ParamType::categorical(vec![
-                "false".to_owned(),
-                "true".to_owned(),
-            ])),
+            Self::Bool => CategoricalParamType::new(vec!["false".to_owned(), "true".to_owned()])
+                .map(StrParamType::Categorical)
+                .map(ParamType::Str),
             Self::Choice {
                 choices,
                 ordinal: false,
-            } => Ok(ParamType::categorical(choices.clone())),
+            } => CategoricalParamType::new(choices.clone())
+                .map(StrParamType::Categorical)
+                .map(ParamType::Str),
             Self::Choice {
                 choices,
                 ordinal: true,
-            } => Ok(ParamType::ordinal(choices.clone())),
-            Self::Normal { mean, stddev } => Ok(ParamType::normal(*mean, *stddev)),
+            } => OrdinalParamType::new(choices.clone())
+                .map(StrParamType::Ordinal)
+                .map(ParamType::Str),
+            Self::Normal { mean, stddev } => NormalParamType::new(*mean, *stddev)
+                .map(NumParamType::Normal)
+                .map(ParamType::Num),
             Self::Range {
-                start,
-                end,
+                min,
+                max,
                 ln,
                 step: None,
-                fidelity,
-            } => Ok(ParamType::continous(*start, *end, *ln, *fidelity)),
+                fidelity: false,
+            } => ContinousParamType::new(*min, *max, *ln)
+                .map(NumParamType::Continous)
+                .map(ParamType::Num),
             Self::Range {
-                start,
-                end,
+                min,
+                max,
                 ln: false,
                 step: Some(step),
-                fidelity,
-            } => Ok(ParamType::discrete(*start, *end, *step, *fidelity)),
+                fidelity: false,
+            } => DiscreteParamType::new(*min, *max, *step)
+                .map(NumParamType::Discrete)
+                .map(ParamType::Num),
+            Self::Range {
+                min,
+                max,
+                ln: false,
+                step,
+                fidelity: true,
+            } => FidelityParamType::new(*min, *max, *step)
+                .map(NumParamType::Fidelity)
+                .map(ParamType::Num),
             Self::Range {
                 ln: true,
                 step: Some(_),
                 ..
             } => anyhow::bail!("Cannot specify both `--ln` and `--step` options."),
+            Self::Range {
+                ln: true,
+                fidelity: true,
+                ..
+            } => anyhow::bail!("Cannot specify both `--ln` and `--fidelity` options."),
         }
     }
 }

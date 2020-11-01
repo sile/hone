@@ -47,7 +47,7 @@ impl Call for AskRpc {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AskReq {
     pub run_id: RunId,
-    pub param_name: String,
+    pub param_name: ParamName,
     pub param_type: ParamType,
 }
 

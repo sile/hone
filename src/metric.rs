@@ -4,6 +4,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct MetricName(String);
 
+impl MetricName {
+    pub const fn new(name: String) -> Self {
+        Self(name)
+    }
+
+    pub fn get(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct MetricValue(FiniteF64);
 
