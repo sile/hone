@@ -1,14 +1,24 @@
 use crate::types::{FiniteF64, InclusiveRange, NonEmptyVec, NonNegF64};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
-#[derive(Debug, Clone)]
-pub struct SearchSpace {
-    params: BTreeMap<ParamName, ParamType>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ParamName(String);
+
+impl ParamName {
+    pub const fn new(name: String) -> Self {
+        Self(name)
+    }
+
+    pub fn get(&self) -> &str {
+        &self.0
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ParamName(pub String);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParamInstance {
+    pub ty: ParamType,
+    pub value: ParamValue,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "snake_case")]
@@ -41,7 +51,7 @@ pub enum NumParamType {
     },
     Fidelity {
         range: InclusiveRange,
-        step: NonNegF64,
+        step: Option<NonNegF64>,
     },
 }
 
@@ -60,3 +70,25 @@ impl std::fmt::Display for ParamValue {
         }
     }
 }
+
+// TODO: delete
+// #[derive(Debug, Clone, Copy)]
+// pub enum OptimParamType {
+//     Continuous { size: f64 },
+//     Discrete { size: usize },
+//     Categorical { size: usize },
+//     Fidelity,
+// }
+
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+// pub struct OptimParamValue(FiniteF64);
+
+// impl OptimParamValue {
+//     pub fn new(value: f64) -> anyhow::Result<Self> {
+//         Ok(Self(FiniteF64::new(value)?))
+//     }
+
+//     pub const fn get(self) -> f64 {
+//         self.0.get()
+//     }
+// }

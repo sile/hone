@@ -1,5 +1,6 @@
-use crate::domain::{ObjectiveType, ObjectiveValue, ParamType, ParamValue};
 use crate::envvar;
+use crate::metric::{MetricName, MetricType, MetricValue};
+use crate::param::{ParamName, ParamType, ParamValue};
 use crate::trial::RunId;
 use bytecodec::bincode_codec::{BincodeDecoder, BincodeEncoder};
 use fibers_rpc::client::ClientServiceBuilder;
@@ -78,9 +79,9 @@ impl Call for TellRpc {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TellReq {
     pub run_id: RunId,
-    pub objective_name: String,
-    pub objective_type: ObjectiveType,
-    pub objective_value: ObjectiveValue,
+    pub metric_name: MetricName,
+    pub metric_type: MetricType,
+    pub metric_value: MetricValue,
 }
 
 #[derive(Debug, Serialize, Deserialize, thiserror::Error)]

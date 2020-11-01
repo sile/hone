@@ -1,5 +1,5 @@
-use crate::domain::ParamType;
 use crate::envvar;
+use crate::param::ParamType;
 use crate::rpc;
 
 #[derive(Debug, structopt::StructOpt)]

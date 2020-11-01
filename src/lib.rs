@@ -1,8 +1,9 @@
 pub mod commands;
-pub mod domain;
+// pub mod domain; TODO: delete
 pub mod envvar;
 pub mod event;
 pub mod hp;
+pub mod metric;
 pub mod optimizer;
 pub mod param;
 pub mod rng;

@@ -1,47 +1,26 @@
-use self::domain::{ObjectiveSpace, ObjectiveValue, ParamNo, ParamValue, SearchSpace};
-use crate::trial::{RunId, Trial};
-use std::collections::BTreeMap;
+use crate::param::{ParamName, ParamType, ParamValue};
+use crate::trial::{Observation, TrialId};
 
-pub mod domain;
-pub mod optimizers;
-
-#[derive(Debug, Clone)]
-pub struct Observation {
-    pub id: usize,
-    pub trial: Trial,
-    pub fixed_params: BTreeMap<ParamNo, ParamValue>,
-    pub metrics: BTreeMap<String, f64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Run {
-    pub id: RunId,
-    pub trial: Trial,
-    pub fixed_params: BTreeMap<ParamNo, ParamValue>,
-}
-
-impl Run {
-    pub fn new(id: RunId, trial: Trial) -> Self {
-        Self {
-            id,
-            trial,
-            fixed_params: BTreeMap::new(),
-        }
-    }
-}
+//pub mod optimizers;
 
 pub trait Optimizer {
-    fn update_search_space(&mut self, search_space: &SearchSpace) -> anyhow::Result<()>;
+    fn ask(
+        &mut self,
+        obs: &Observation,
+        param_name: &ParamName,
+        param_type: &ParamType,
+    ) -> anyhow::Result<ParamValue>;
 
-    fn update_objective_space(&mut self, objective_space: &ObjectiveSpace) -> anyhow::Result<()>;
+    fn tell(&mut self, obs: &Observation) -> anyhow::Result<()>;
 
-    fn ask(&mut self, run: &Run, param_no: ParamNo) -> anyhow::Result<ParamValue>;
-
-    fn tell(&mut self, run: &Run, values: Option<&[ObjectiveValue]>) -> anyhow::Result<()>;
-
-    fn resume(&mut self, run_id: RunId) -> Option<Trial>;
-
-    // TODO(?): is_terminated or start_trial() -> New | Resume | Terminated
+    fn next_action(&mut self) -> anyhow::Result<Action>;
 }
 
-// TODO: queued-optimizer
+#[derive(Debug, Clone)]
+pub enum Action {
+    CreateTrial,
+    ResumeTrial { trial_id: TrialId },
+    FinishTrial { trial_id: TrialId },
+    WaitObservations,
+    QuitOptimization,
+}
