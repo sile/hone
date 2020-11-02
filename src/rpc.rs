@@ -2,7 +2,8 @@ use crate::envvar;
 use crate::metric::{MetricName, MetricType, MetricValue};
 use crate::param::{ParamName, ParamType, ParamValue};
 use crate::trial::RunId;
-use bytecodec::bincode_codec::{BincodeDecoder, BincodeEncoder};
+use anyhow::Context;
+use bytecodec::json_codec::{JsonDecoder, JsonEncoder};
 use fibers_rpc::client::ClientServiceBuilder;
 use fibers_rpc::server::ServerBuilder;
 use fibers_rpc::{Call, ProcedureId};
@@ -24,7 +25,8 @@ where
     let service_handle = service.handle();
     fibers_global::spawn(service.map_err(|e| panic!("{}", e)));
     let future = RPC::client(&service_handle).call(server_addr, req);
-    let res = fibers_global::execute(future)?;
+    let res =
+        fibers_global::execute(future).with_context(|| format!("RPC {:?} failed", RPC::NAME))?;
     Ok(res)
 }
 
@@ -36,12 +38,12 @@ impl Call for AskRpc {
     const NAME: &'static str = "ask";
 
     type Req = AskReq;
-    type ReqEncoder = BincodeEncoder<Self::Req>;
-    type ReqDecoder = BincodeDecoder<Self::Req>;
+    type ReqEncoder = JsonEncoder<Self::Req>;
+    type ReqDecoder = JsonDecoder<Self::Req>;
 
     type Res = Result<ParamValue, AskError>;
-    type ResEncoder = BincodeEncoder<Self::Res>;
-    type ResDecoder = BincodeDecoder<Self::Res>;
+    type ResEncoder = JsonEncoder<Self::Res>;
+    type ResDecoder = JsonDecoder<Self::Res>;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -68,12 +70,12 @@ impl Call for TellRpc {
     const NAME: &'static str = "tell";
 
     type Req = TellReq;
-    type ReqEncoder = BincodeEncoder<Self::Req>;
-    type ReqDecoder = BincodeDecoder<Self::Req>;
+    type ReqEncoder = JsonEncoder<Self::Req>;
+    type ReqDecoder = JsonDecoder<Self::Req>;
 
     type Res = Result<(), TellError>;
-    type ResEncoder = BincodeEncoder<Self::Res>;
-    type ResDecoder = BincodeDecoder<Self::Res>;
+    type ResEncoder = JsonEncoder<Self::Res>;
+    type ResDecoder = JsonDecoder<Self::Res>;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -153,7 +155,13 @@ impl fibers_rpc::server::HandleCall<TellRpc> for TellHandler {
 
 // TODO:
 pub fn spawn_rpc_server() -> anyhow::Result<(SocketAddr, Channel)> {
+    // TODO: for debug
+    use slog::Drain as _;
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stderr());
+    let logger = slog::Logger::root(slog_term::FullFormat::new(plain).build().fuse(), slog::o!());
+
     let mut builder = ServerBuilder::new(SocketAddr::from(([127, 0, 0, 1], 0)));
+    builder.logger(logger);
     let (tx, rx) = fibers::sync::mpsc::channel();
     builder.add_call_handler(AskHandler { tx: tx.clone() });
     builder.add_call_handler(TellHandler { tx: tx.clone() });

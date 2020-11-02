@@ -1,3 +1,5 @@
+use std::io::Write;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Event {
@@ -34,4 +36,15 @@ pub enum ObsEvent {
 pub enum RunEvent {
     Started { run_id: usize, obs_id: usize },
     Finished { run_id: usize, exit_code: usize },
+}
+
+#[derive(Debug)]
+pub struct EventWriter<W> {
+    writer: W,
+}
+
+impl<W: Write> EventWriter<W> {
+    pub fn new(writer: W) -> Self {
+        Self { writer }
+    }
 }

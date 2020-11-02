@@ -13,7 +13,7 @@ license = "MIT"
 
 [dependencies]
 anyhow = "1"
-bytecodec = { version = "0.4", features = ["bincode_codec"] }
+bytecodec = { version = "0.4", features = ["json_codec"] }
 fibers = "0.1"
 fibers_global = "0.1"
 fibers_rpc = "0.3"
@@ -22,6 +22,8 @@ ordered-float = { version = "2", features = ["serde"] }
 rand = "0.7"
 serde = { version="1", features=["derive"] }
 serde_json = "1"
+slog = "2"
+slog-term = "2"
 structopt = "0.3"
 thiserror = "1"
 tpe = "0.1"

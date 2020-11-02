@@ -30,6 +30,12 @@ impl RunId {
     pub const fn get(self) -> u64 {
         self.0
     }
+
+    pub fn fetch_and_increment(&mut self) -> Self {
+        let id = RunId(self.0);
+        self.0 += 1;
+        id
+    }
 }
 
 #[derive(
