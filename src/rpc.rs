@@ -55,10 +55,10 @@ pub struct AskReq {
 
 #[derive(Debug, Serialize, Deserialize, thiserror::Error)]
 pub enum AskError {
-    #[error("TODO")]
+    #[error("TODO: RecvError")]
     RecvError,
 
-    #[error("TODO")]
+    #[error("TODO: InvalidRequest")]
     InvalidRequest,
 }
 
@@ -132,9 +132,12 @@ impl fibers_rpc::server::HandleCall<AskRpc> for AskHandler {
     fn handle_call(&self, req: <AskRpc as Call>::Req) -> fibers_rpc::server::Reply<AskRpc> {
         let (tx, rx) = fibers::sync::oneshot::channel();
         let _ = self.tx.send(Message::Ask { req, reply: tx });
-        fibers_rpc::server::Reply::future(
-            rx.then(|result| Ok(result.unwrap_or_else(|_| Err(AskError::RecvError)))),
-        )
+        fibers_rpc::server::Reply::future(rx.then(|result| {
+            Ok(result.unwrap_or_else(|e| {
+                eprintln!("[HONE] TODO: {}", e);
+                Err(AskError::RecvError)
+            }))
+        }))
     }
 }
 

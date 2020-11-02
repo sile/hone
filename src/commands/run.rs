@@ -1,3 +1,4 @@
+use crate::optimizer::OptimizerSpec;
 use crate::runner::{CommandRunnerOpt, StudyRunner, StudyRunnerOpt};
 use std::num::NonZeroUsize;
 use structopt::StructOpt;
@@ -13,6 +14,9 @@ pub struct RunOpt {
 
     #[structopt(long)]
     pub runs: Option<usize>,
+
+    #[structopt(long, parse(try_from_str = crate::json::parse_json))]
+    pub optim: Option<OptimizerSpec>,
 
     // TODO: seed
     // TODO: timeout, search-space, retry, sync
@@ -32,7 +36,8 @@ impl RunOpt {
             },
         };
         let stdout = std::io::stdout();
-        let runner = StudyRunner::new(stdout.lock(), opt)?;
+        let optimizer = self.optim.clone().unwrap_or_default().build()?;
+        let runner = StudyRunner::new(stdout.lock(), optimizer, opt)?;
         runner.run()
     }
 }

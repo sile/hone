@@ -6,7 +6,7 @@ enum Opt {
     Ask(hone::commands::ask::AskOpt),
     Tell(hone::commands::tell::TellOpt),
     Run(hone::commands::run::RunOpt),
-    // TODO: Optim
+    Optim(hone::commands::optim::OptimOpt),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -23,6 +23,10 @@ fn main() -> anyhow::Result<()> {
         }
         Opt::Run(opt) => {
             opt.run()?;
+        }
+        Opt::Optim(opt) => {
+            serde_json::to_writer(std::io::stdout().lock(), &opt.spec)?;
+            println!();
         }
     }
     Ok(())

@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod envvar;
 pub mod event;
+pub mod json;
 pub mod metric;
 pub mod optimizer;
 pub mod param;

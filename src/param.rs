@@ -90,7 +90,7 @@ impl ContinousParamType {
     pub fn new(min: f64, max: f64, ln: bool) -> anyhow::Result<Self> {
         let range = InclusiveRange::new(min, max)?;
         if ln {
-            anyhow::ensure!(range.min().is_sign_positive(), "TODO");
+            anyhow::ensure!(range.min().get().is_sign_positive(), "TODO");
         }
         Ok(Self { range, ln })
     }
@@ -137,8 +137,11 @@ pub struct DiscreteParamType {
 
 impl DiscreteParamType {
     pub fn new(min: f64, max: f64, step: f64) -> anyhow::Result<Self> {
+        let mut range = InclusiveRange::new(min, max)?;
+        let max = range.min().get() + (range.width().get() / step).floor() * step;
+        range = InclusiveRange::new(range.min().get(), max)?;
         Ok(Self {
-            range: InclusiveRange::new(min, max)?,
+            range,
             step: NonNegF64::new(step)?,
         })
     }
@@ -149,6 +152,10 @@ impl DiscreteParamType {
 
     pub const fn step(&self) -> NonNegF64 {
         self.step
+    }
+
+    pub fn count(&self) -> u64 {
+        (self.range.width().get() / self.step.get()) as u64
     }
 }
 
@@ -161,8 +168,13 @@ pub struct FidelityParamType {
 
 impl FidelityParamType {
     pub fn new(min: f64, max: f64, step: Option<f64>) -> anyhow::Result<Self> {
+        let mut range = InclusiveRange::new(min, max)?;
+        if let Some(step) = step {
+            let max = range.min().get() + (range.width().get() / step).floor() * step;
+            range = InclusiveRange::new(range.min().get(), max)?;
+        }
         Ok(Self {
-            range: InclusiveRange::new(min, max)?,
+            range,
             step: step.map(|step| NonNegF64::new(step)).transpose()?,
         })
     }

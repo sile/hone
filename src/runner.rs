@@ -1,11 +1,13 @@
 use crate::envvar;
 use crate::event::EventWriter;
+use crate::optimizer::Optimizer;
+use crate::param::ParamValue;
 use crate::rpc;
 use crate::trial::RunId;
 use anyhow::Context;
 use std::io::Write;
 use std::num::NonZeroUsize;
-use std::process::{Child, Command};
+use std::process::{Child, Command, ExitStatus};
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -36,6 +38,13 @@ pub struct CommandRunner {
     proc: Child,
 }
 
+impl CommandRunner {
+    pub fn try_wait(&mut self) -> anyhow::Result<Option<ExitStatus>> {
+        let exit_status = self.proc.try_wait()?;
+        Ok(exit_status)
+    }
+}
+
 #[derive(Debug)]
 pub struct StudyRunnerOpt {
     // timeout: {study,trial,observation,run}
@@ -54,11 +63,12 @@ pub struct StudyRunner<W> {
     next_run_id: RunId,
     rpc_server_addr: std::net::SocketAddr,
     rpc_channel: rpc::Channel,
+    optimizer: Optimizer,
     opt: StudyRunnerOpt,
 }
 
 impl<W: Write> StudyRunner<W> {
-    pub fn new(output: W, opt: StudyRunnerOpt) -> anyhow::Result<Self> {
+    pub fn new(output: W, optimizer: Optimizer, opt: StudyRunnerOpt) -> anyhow::Result<Self> {
         let (rpc_server_addr, rpc_channel) = rpc::spawn_rpc_server()?;
         eprintln!("[HONE] RPC server: {}", rpc_server_addr);
 
@@ -69,6 +79,7 @@ impl<W: Write> StudyRunner<W> {
             rpc_server_addr,
             rpc_channel,
             next_run_id: RunId::new(0),
+            optimizer,
             opt,
         })
     }
@@ -89,7 +100,19 @@ impl<W: Write> StudyRunner<W> {
 
             while let Some(message) = self.rpc_channel.try_recv() {
                 eprintln!("[HONE] Recv: {:?}", message);
+                self.handle_message(message)?;
                 did_nothing = false;
+            }
+
+            let mut i = 0;
+            while i < self.runnings.len() {
+                if let Some(status) = self.runnings[i].try_wait()? {
+                    eprintln!("[HONE] Process exited: {}", status);
+                    self.runnings.swap_remove(i);
+                    self.finished_runs += 1;
+                } else {
+                    i += 1;
+                }
             }
 
             if did_nothing {
@@ -99,7 +122,27 @@ impl<W: Write> StudyRunner<W> {
         Ok(())
     }
 
-    pub fn is_study_finished(&self) -> bool {
+    fn is_study_finished(&self) -> bool {
         self.opt.runs.map_or(false, |n| self.finished_runs >= n)
+    }
+
+    fn handle_message(&mut self, message: rpc::Message) -> anyhow::Result<()> {
+        match message {
+            rpc::Message::Ask { req, reply } => {
+                let value = self.handle_ask(req)?;
+                reply.send(Ok(value))?;
+            }
+            rpc::Message::Tell { req, reply } => {
+                todo!();
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_ask(&mut self, req: rpc::AskReq) -> anyhow::Result<ParamValue> {
+        // pub run_id: RunId,
+        // pub param_name: ParamName,
+        // pub param_type: ParamType,
+        todo!()
     }
 }

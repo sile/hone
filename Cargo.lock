@@ -316,6 +316,7 @@ dependencies = [
  "futures",
  "ordered-float",
  "rand",
+ "rand_distr 0.3.0",
  "serde",
  "serde_json",
  "slog",

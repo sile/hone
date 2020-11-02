@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex};
 pub struct ArcRng(Arc<Mutex<StdRng>>);
 impl ArcRng {
     /// Makes a new `ArcRng` with the given random seed.
-    pub fn new(seed: u64) -> Self {
+    pub fn new(seed: Option<u64>) -> Self {
+        let seed = seed.unwrap_or_else(|| rand::random());
         let mut seed256 = [0; 32];
         (&mut seed256[0..8]).copy_from_slice(&seed.to_be_bytes());
 

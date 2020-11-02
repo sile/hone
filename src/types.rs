@@ -1,7 +1,4 @@
 use ordered_float::OrderedFloat;
-use rand::distributions::Distribution;
-use rand::seq::SliceRandom;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
@@ -28,12 +25,6 @@ impl<T> TryFrom<Vec<T>> for NonEmptyVec<T> {
     }
 }
 
-impl<T: Clone> Distribution<T> for NonEmptyVec<T> {
-    fn sample<R: ?Sized + Rng>(&self, rng: &mut R) -> T {
-        self.0.choose(rng).expect("unreachable").clone()
-    }
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct UncheckedInclusiveRange {
     min: f64,
@@ -43,35 +34,39 @@ struct UncheckedInclusiveRange {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(try_from = "UncheckedInclusiveRange")]
 pub struct InclusiveRange {
-    min: f64,
-    max: f64,
+    min: FiniteF64,
+    max: FiniteF64,
 }
 
 impl InclusiveRange {
     pub fn new(min: f64, max: f64) -> anyhow::Result<Self> {
-        anyhow::ensure!(min.is_finite(), "`min`({}) isn't an finite number", min);
-        anyhow::ensure!(max.is_finite(), "`max`({}) isn't an finite number", max);
+        let min = FiniteF64::new(min)?;
+        let max = FiniteF64::new(max)?;
         anyhow::ensure!(
-            min <= max,
+            min.get() <= max.get(),
             "`min`({})  must be smaller than or equal to `max`({})",
-            min,
-            max
+            min.get(),
+            max.get()
+        );
+        anyhow::ensure!(
+            (max.get() - min.get()).is_finite(),
+            "the width of the range {}..{} is not a finite number",
+            min.get(),
+            max.get()
         );
         Ok(Self { min, max })
     }
 
-    pub const fn min(self) -> f64 {
+    pub const fn min(self) -> FiniteF64 {
         self.min
     }
 
-    pub const fn max(self) -> f64 {
-        // TODO: FiniteF64
+    pub const fn max(self) -> FiniteF64 {
         self.max
     }
 
-    pub fn width(self) -> f64 {
-        // TODO: FiniteF64
-        self.max - self.min
+    pub fn width(self) -> FiniteF64 {
+        FiniteF64::new(self.max.get() - self.min.get()).expect("unreachable")
     }
 }
 
@@ -80,12 +75,6 @@ impl TryFrom<UncheckedInclusiveRange> for InclusiveRange {
 
     fn try_from(from: UncheckedInclusiveRange) -> Result<Self, Self::Error> {
         Self::new(from.min, from.max)
-    }
-}
-
-impl Distribution<f64> for InclusiveRange {
-    fn sample<R: ?Sized + Rng>(&self, rng: &mut R) -> f64 {
-        rng.gen_range(self.min, self.max)
     }
 }
 
