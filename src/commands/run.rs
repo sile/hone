@@ -2,6 +2,7 @@ use crate::envvar;
 use crate::optimizer;
 use crate::optimizer::Optimizer;
 use crate::rpc;
+use crate::runner::{CommandRunnerOpt, StudyRunner, StudyRunnerOpt};
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
@@ -10,15 +11,15 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 pub struct RunOpt {
-    #[structopt(long, default_value = "1")]
-    pub repeat: usize,
-
     // TODO: Implement
     #[structopt(long)]
     pub tempdir: bool,
 
     #[structopt(long, default_value = "1")]
-    pub parallelism: NonZeroUsize,
+    pub workers: NonZeroUsize,
+
+    #[structopt(long)]
+    pub runs: usize,
 
     // TODO: seed
     // TODO: timeout, search-space, retry, sync
@@ -28,8 +29,16 @@ pub struct RunOpt {
 
 impl RunOpt {
     pub fn run(self) -> anyhow::Result<()> {
-        todo!()
-        //Runner::new(self)?.run()
+        let opt = StudyRunnerOpt {
+            study_name: uuid::Uuid::new_v4().to_string(),
+            workers: self.workers,
+            runs: self.runs,
+            command: CommandRunnerOpt {
+                path: self.command.clone(),
+                args: self.args.clone(),
+            },
+        };
+        StudyRunner::new(std::io::stdout().lock(), opt).run()
     }
 }
 
@@ -85,7 +94,7 @@ impl TrialState {
 
 #[derive(Debug)]
 pub struct Runner {
-    options: RunOpt,
+    opt: RunOpt,
     server_addr: SocketAddr,
     channel: rpc::Channel,
     //optimizer: crate::optimizer::RandomOptimizer,
@@ -95,6 +104,15 @@ pub struct Runner {
     evaluated_trials: Vec<TrialState>,
 }
 
+impl Runner {
+    pub fn new(opt: RunOpt) -> anyhow::Result<Self> {
+        todo!()
+    }
+
+    pub fn run(mut self) -> anyhow::Result<()> {
+        todo!()
+    }
+}
 // impl Runner {
 //     pub fn new(options: RunOpt) -> anyhow::Result<Self> {
 //         let (server_addr, channel) = rpc::spawn_rpc_server()?;
