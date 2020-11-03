@@ -20,6 +20,12 @@ pub struct ParamInstance {
     pub value: ParamValue,
 }
 
+impl ParamInstance {
+    pub const fn new(ty: ParamType, value: ParamValue) -> Self {
+        Self { ty, value }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "snake_case")]
 pub enum ParamType {

@@ -13,6 +13,7 @@ pub trait Optimize {
 
     fn tell(&mut self, obs: &Observation) -> anyhow::Result<bool>;
 
+    // TODO: rename
     fn next_action(&mut self) -> anyhow::Result<Action> {
         Ok(Action::CreateTrial)
     }

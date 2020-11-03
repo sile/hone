@@ -34,7 +34,7 @@ impl TellOpt {
             },
             metric_value: MetricValue::new(self.metric_value)?,
         };
-        rpc::call::<rpc::TellRpc>(req)??;
+        rpc::call::<rpc::TellRpc>(req)?;
         Ok(())
     }
 }

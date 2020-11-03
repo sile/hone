@@ -41,7 +41,7 @@ impl Call for AskRpc {
     type ReqEncoder = JsonEncoder<Self::Req>;
     type ReqDecoder = JsonDecoder<Self::Req>;
 
-    type Res = Result<ParamValue, AskError>;
+    type Res = ParamValue;
     type ResEncoder = JsonEncoder<Self::Res>;
     type ResDecoder = JsonDecoder<Self::Res>;
 }
@@ -51,15 +51,6 @@ pub struct AskReq {
     pub run_id: RunId,
     pub param_name: ParamName,
     pub param_type: ParamType,
-}
-
-#[derive(Debug, Serialize, Deserialize, thiserror::Error)]
-pub enum AskError {
-    #[error("TODO: RecvError")]
-    RecvError,
-
-    #[error("TODO: InvalidRequest")]
-    InvalidRequest,
 }
 
 #[derive(Debug)]
@@ -73,7 +64,7 @@ impl Call for TellRpc {
     type ReqEncoder = JsonEncoder<Self::Req>;
     type ReqDecoder = JsonDecoder<Self::Req>;
 
-    type Res = Result<(), TellError>;
+    type Res = ();
     type ResEncoder = JsonEncoder<Self::Res>;
     type ResDecoder = JsonDecoder<Self::Res>;
 }
@@ -86,24 +77,15 @@ pub struct TellReq {
     pub metric_value: MetricValue,
 }
 
-#[derive(Debug, Serialize, Deserialize, thiserror::Error)]
-pub enum TellError {
-    #[error("TODO")]
-    RecvError,
-
-    #[error("TODO")]
-    InvalidRequest,
-}
-
 #[derive(Debug)]
 pub enum Message {
     Ask {
         req: AskReq,
-        reply: fibers::sync::oneshot::Sender<Result<ParamValue, AskError>>,
+        reply: fibers::sync::oneshot::Sender<ParamValue>,
     },
     Tell {
         req: TellReq,
-        reply: fibers::sync::oneshot::Sender<Result<(), TellError>>,
+        reply: fibers::sync::oneshot::Sender<()>,
     },
 }
 
@@ -132,12 +114,7 @@ impl fibers_rpc::server::HandleCall<AskRpc> for AskHandler {
     fn handle_call(&self, req: <AskRpc as Call>::Req) -> fibers_rpc::server::Reply<AskRpc> {
         let (tx, rx) = fibers::sync::oneshot::channel();
         let _ = self.tx.send(Message::Ask { req, reply: tx });
-        fibers_rpc::server::Reply::future(rx.then(|result| {
-            Ok(result.unwrap_or_else(|e| {
-                eprintln!("[HONE] TODO: {}", e);
-                Err(AskError::RecvError)
-            }))
-        }))
+        fibers_rpc::server::Reply::future(rx.map_err(|e| panic!("Error: {}", e)))
     }
 }
 
@@ -150,21 +127,19 @@ impl fibers_rpc::server::HandleCall<TellRpc> for TellHandler {
     fn handle_call(&self, req: <TellRpc as Call>::Req) -> fibers_rpc::server::Reply<TellRpc> {
         let (tx, rx) = fibers::sync::oneshot::channel();
         let _ = self.tx.send(Message::Tell { req, reply: tx });
-        fibers_rpc::server::Reply::future(
-            rx.then(|result| Ok(result.unwrap_or_else(|_| Err(TellError::RecvError)))),
-        )
+        fibers_rpc::server::Reply::future(rx.map_err(|e| panic!("Error: {}", e)))
     }
 }
 
 // TODO:
 pub fn spawn_rpc_server() -> anyhow::Result<(SocketAddr, Channel)> {
-    // TODO: for debug
-    use slog::Drain as _;
-    let plain = slog_term::PlainSyncDecorator::new(std::io::stderr());
-    let logger = slog::Logger::root(slog_term::FullFormat::new(plain).build().fuse(), slog::o!());
+    // // TODO: for debug
+    // use slog::Drain as _;
+    // let plain = slog_term::PlainSyncDecorator::new(std::io::stderr());
+    // let logger = slog::Logger::root(slog_term::FullFormat::new(plain).build().fuse(), slog::o!());
 
     let mut builder = ServerBuilder::new(SocketAddr::from(([127, 0, 0, 1], 0)));
-    builder.logger(logger);
+    // builder.logger(logger);
     let (tx, rx) = fibers::sync::mpsc::channel();
     builder.add_call_handler(AskHandler { tx: tx.clone() });
     builder.add_call_handler(TellHandler { tx: tx.clone() });

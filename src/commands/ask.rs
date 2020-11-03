@@ -30,7 +30,7 @@ impl AskOpt {
             param_name: ParamName::new(self.param_name.clone()),
             param_type,
         };
-        let res = rpc::call::<rpc::AskRpc>(req)??;
+        let res = rpc::call::<rpc::AskRpc>(req)?;
         let v = res.to_string();
         if self.long_option {
             if matches!(self.param_spec, ParamSpec::Bool) && v == "true" {

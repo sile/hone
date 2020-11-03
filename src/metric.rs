@@ -44,3 +44,9 @@ pub struct MetricInstance {
     pub ty: MetricType,
     pub value: MetricValue,
 }
+
+impl MetricInstance {
+    pub const fn new(ty: MetricType, value: MetricValue) -> Self {
+        Self { ty, value }
+    }
+}

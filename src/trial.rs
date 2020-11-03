@@ -15,6 +15,12 @@ impl TrialId {
     pub const fn get(self) -> u64 {
         self.0
     }
+
+    pub fn fetch_and_increment(&mut self) -> Self {
+        let id = Self(self.0);
+        self.0 += 1;
+        id
+    }
 }
 
 #[derive(
@@ -32,7 +38,7 @@ impl RunId {
     }
 
     pub fn fetch_and_increment(&mut self) -> Self {
-        let id = RunId(self.0);
+        let id = Self(self.0);
         self.0 += 1;
         id
     }
@@ -51,6 +57,12 @@ impl ObservationId {
     pub const fn get(self) -> u64 {
         self.0
     }
+
+    pub fn fetch_and_increment(&mut self) -> Self {
+        let id = Self(self.0);
+        self.0 += 1;
+        id
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -59,4 +71,15 @@ pub struct Observation {
     pub trial_id: TrialId,
     pub params: BTreeMap<ParamName, ParamInstance>,
     pub metrics: BTreeMap<MetricName, MetricInstance>,
+}
+
+impl Observation {
+    pub fn new(obs_id: ObservationId, trial_id: TrialId) -> Self {
+        Self {
+            id: obs_id,
+            trial_id,
+            params: BTreeMap::new(),
+            metrics: BTreeMap::new(),
+        }
+    }
 }
