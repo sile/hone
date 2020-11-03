@@ -44,13 +44,13 @@ impl ObservationId {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Observation {
     pub id: ObservationId,
     pub trial_id: TrialId,
     pub params: BTreeMap<ParamName, ParamInstance>,
     pub metrics: BTreeMap<MetricName, MetricInstance>,
-    // TODO: exit_status
+    pub exit_status: Option<i32>,
 }
 
 impl Observation {
@@ -60,6 +60,7 @@ impl Observation {
             trial_id,
             params: BTreeMap::new(),
             metrics: BTreeMap::new(),
+            exit_status: None,
         }
     }
 }

@@ -1,31 +1,54 @@
+use crate::runner::StudyRunnerOpt;
+use crate::trial::{Observation, ObservationId, TrialId};
 use std::io::Write;
+use std::time::Duration;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Event {
     Study(StudyEvent),
     Trial(TrialEvent),
-    Observation(ObservationEvent),
+    Obs(ObservationEvent),
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StudyEvent {
-    Started { name: String },
+    Started {
+        #[serde(flatten)]
+        opt: StudyRunnerOpt,
+    },
+    Inherited {
+        #[serde(flatten)]
+        opt: StudyRunnerOpt,
+    },
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrialEvent {
-    Started { trial_id: usize },
-    Finished { trial_id: usize },
+    Started {
+        trial_id: TrialId,
+        elapsed: Duration,
+    },
+    Finished {
+        trial_id: TrialId,
+        elapsed: Duration,
+    },
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ObservationEvent {
-    Started { obs_id: usize, trial_id: usize },
-    Finished { obs_id: usize },
+    Started {
+        obs_id: ObservationId,
+        trial_id: TrialId,
+        elapsed: Duration,
+    },
+    Finished {
+        obs: Observation,
+        elapsed: Duration,
+    },
 }
 
 #[derive(Debug)]
@@ -36,5 +59,11 @@ pub struct EventWriter<W> {
 impl<W: Write> EventWriter<W> {
     pub fn new(writer: W) -> Self {
         Self { writer }
+    }
+
+    pub fn write(&mut self, event: Event) -> anyhow::Result<()> {
+        serde_json::to_writer(&mut self.writer, &event)?;
+        writeln!(&mut self.writer)?;
+        Ok(())
     }
 }

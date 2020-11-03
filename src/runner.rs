@@ -1,5 +1,6 @@
 use crate::envvar;
 use crate::event::EventWriter;
+use crate::event::{Event, ObservationEvent, StudyEvent, TrialEvent};
 use crate::metric::MetricInstance;
 use crate::optimizer::Action;
 use crate::optimizer::{Optimize, Optimizer};
@@ -11,9 +12,9 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::num::NonZeroUsize;
 use std::process::{Child, Command, ExitStatus};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CommandRunnerOpt {
     pub path: String,
     pub args: Vec<String>,
@@ -52,7 +53,7 @@ impl CommandRunner {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StudyRunnerOpt {
     // timeout: {study,trial,observation,observation}
     // tempdir: {study,trial,observation,observation}
@@ -60,6 +61,7 @@ pub struct StudyRunnerOpt {
     pub workers: NonZeroUsize,
     pub runs: Option<usize>,
     pub command: CommandRunnerOpt,
+    // attrs
 }
 
 #[derive(Debug)]
@@ -75,13 +77,12 @@ pub struct StudyRunner<W> {
     rpc_channel: rpc::Channel,
     optimizer: Optimizer,
     opt: StudyRunnerOpt,
+    start_time: Instant,
 }
 
 impl<W: Write> StudyRunner<W> {
     pub fn new(output: W, optimizer: Optimizer, opt: StudyRunnerOpt) -> anyhow::Result<Self> {
         let (rpc_server_addr, rpc_channel) = rpc::spawn_rpc_server()?;
-        eprintln!("[HONE] RPC server: {}", rpc_server_addr);
-
         Ok(Self {
             output: EventWriter::new(output),
             observationnings: Vec::new(),
@@ -94,24 +95,32 @@ impl<W: Write> StudyRunner<W> {
             next_trial_id: TrialId::new(0),
             optimizer,
             opt,
+            start_time: Instant::now(),
         })
     }
 
     fn start_observation(&mut self, obs: Observation) -> anyhow::Result<()> {
         let observation_id = self.next_observation_id.fetch_and_increment();
+        self.output.write(Event::Obs(ObservationEvent::Started {
+            obs_id: observation_id,
+            trial_id: obs.trial_id,
+            elapsed: self.start_time.elapsed(),
+        }))?;
         self.observationnings.push(
             self.opt
                 .command
                 .spawn(observation_id, self.rpc_server_addr)?,
         );
         self.observations.insert(observation_id, obs);
-        eprintln!("[HONE] Spawn new process.");
         Ok(())
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
-        let mut did_nothing;
+        self.output.write(Event::Study(StudyEvent::Started {
+            opt: self.opt.clone(),
+        }))?;
 
+        let mut did_nothing;
         while !self.is_study_finished() {
             did_nothing = true;
 
@@ -122,6 +131,10 @@ impl<W: Write> StudyRunner<W> {
                             self.next_obs_id.fetch_and_increment(),
                             self.next_trial_id.fetch_and_increment(),
                         );
+                        self.output.write(Event::Trial(TrialEvent::Started {
+                            trial_id: obs.trial_id,
+                            elapsed: self.start_time.elapsed(),
+                        }))?;
                         self.start_observation(obs)?;
                         did_nothing = false;
                         break;
@@ -133,8 +146,12 @@ impl<W: Write> StudyRunner<W> {
                         did_nothing = false;
                         break;
                     }
-                    Action::FinishTrial { .. } => {
-                        todo!();
+                    Action::FinishTrial { trial_id } => {
+                        self.output.write(Event::Trial(TrialEvent::Finished {
+                            trial_id,
+                            elapsed: self.start_time.elapsed(),
+                        }))?;
+                        todo!("sweep resource");
                     }
                     Action::WaitObservations => {
                         break;
@@ -154,15 +171,18 @@ impl<W: Write> StudyRunner<W> {
             let mut i = 0;
             while i < self.observationnings.len() {
                 if let Some(status) = self.observationnings[i].try_wait()? {
-                    eprintln!("[HONE] Process exited: {}", status);
                     let finished = self.observationnings.swap_remove(i);
                     self.finished_observations += 1;
-                    let obs = self
+                    let mut obs = self
                         .observations
                         .remove(&finished.observation_id)
                         .expect("bug");
+                    obs.exit_status = status.code();
                     self.optimizer.tell(&obs)?;
-                    // TODO: retry if failed
+                    self.output.write(Event::Obs(ObservationEvent::Finished {
+                        obs,
+                        elapsed: self.start_time.elapsed(),
+                    }))?;
                     did_nothing = false;
                 } else {
                     i += 1;
