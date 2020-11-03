@@ -46,6 +46,7 @@ impl ObservationId {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Observation {
+    #[serde(rename = "obs_id")]
     pub id: ObservationId,
     pub trial_id: TrialId,
     pub params: BTreeMap<ParamName, ParamInstance>,

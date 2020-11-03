@@ -29,7 +29,7 @@ pub enum StudyEvent {
 pub enum TrialEvent {
     Started {
         trial_id: TrialId,
-        elapsed: Duration,
+        elapsed: Duration, // TODO: ElapsedSeconds
     },
     Finished {
         trial_id: TrialId,
@@ -46,6 +46,7 @@ pub enum ObservationEvent {
         elapsed: Duration,
     },
     Finished {
+        #[serde(flatten)]
         obs: Observation,
         elapsed: Duration,
     },

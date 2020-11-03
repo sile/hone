@@ -11,13 +11,16 @@ use anyhow::Context;
 use std::collections::HashMap;
 use std::io::Write;
 use std::num::NonZeroUsize;
-use std::process::{Child, Command, ExitStatus};
+use std::path::PathBuf;
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CommandRunnerOpt {
     pub path: String,
     pub args: Vec<String>,
+    pub nocapture_stdout: bool,
+    pub nocapture_stderr: bool,
 }
 
 impl CommandRunnerOpt {
@@ -27,10 +30,20 @@ impl CommandRunnerOpt {
         rpc_server_addr: std::net::SocketAddr,
     ) -> anyhow::Result<CommandRunner> {
         // TODO: capture stdout/stderr
-        let proc = Command::new(&self.path)
+        let mut command = Command::new(&self.path);
+        command
             .args(&self.args)
             .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
             .env(envvar::KEY_OBSERVATION_ID, observation_id.get().to_string())
+            .stdin(Stdio::null());
+        if !self.nocapture_stdout {
+            command.stdout(Stdio::null()); // TODO: redict to file
+        }
+        if !self.nocapture_stderr {
+            command.stderr(Stdio::null()); // TODO: redict to file
+        }
+
+        let proc = command
             .spawn()
             .with_context(|| format!("Failed to spawn command: {:?}", self.path))?;
         Ok(CommandRunner {
@@ -61,6 +74,7 @@ pub struct StudyRunnerOpt {
     pub workers: NonZeroUsize,
     pub runs: Option<usize>,
     pub command: CommandRunnerOpt,
+    pub output: Option<PathBuf>,
     // attrs
 }
 
@@ -178,11 +192,16 @@ impl<W: Write> StudyRunner<W> {
                         .remove(&finished.observation_id)
                         .expect("bug");
                     obs.exit_status = status.code();
-                    self.optimizer.tell(&obs)?;
-                    self.output.write(Event::Obs(ObservationEvent::Finished {
-                        obs,
-                        elapsed: self.start_time.elapsed(),
-                    }))?;
+                    let trial_finished = self.optimizer.tell(&obs)?;
+
+                    let trial_id = obs.trial_id;
+                    let elapsed = self.start_time.elapsed();
+                    self.output
+                        .write(Event::Obs(ObservationEvent::Finished { obs, elapsed }))?;
+                    if trial_finished {
+                        self.output
+                            .write(Event::Trial(TrialEvent::Finished { trial_id, elapsed }))?;
+                    }
                     did_nothing = false;
                 } else {
                     i += 1;
