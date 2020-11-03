@@ -12,14 +12,18 @@ pub struct RunOpt {
     #[structopt(long, default_value = "1")]
     pub workers: NonZeroUsize,
 
-    #[structopt(long)]
-    pub runs: Option<usize>,
+    #[structopt(long, short = "n")]
+    pub repeat: Option<usize>,
 
     #[structopt(long, parse(try_from_str = crate::json::parse_json))]
     pub optim: Option<OptimizerSpec>,
 
-    // TODO: seed
-    // TODO: timeout, search-space, retry, sync
+    #[structopt(long = "name")]
+    pub study_name: Option<String>,
+
+    // TODO: attrs
+    // TODO: inherit
+    // TODO: timeout
     pub command: String,
     pub args: Vec<String>,
 }
@@ -27,9 +31,11 @@ pub struct RunOpt {
 impl RunOpt {
     pub fn run(self) -> anyhow::Result<()> {
         let opt = StudyRunnerOpt {
-            study_name: uuid::Uuid::new_v4().to_string(),
+            study_name: self
+                .study_name
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
             workers: self.workers,
-            runs: self.runs,
+            runs: self.repeat,
             command: CommandRunnerOpt {
                 path: self.command.clone(),
                 args: self.args.clone(),

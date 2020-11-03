@@ -20,13 +20,13 @@ pub struct AskOpt {
 
 impl AskOpt {
     pub fn ask(&self) -> anyhow::Result<String> {
-        let run_id = envvar::get_run_id()?;
+        let observation_id = envvar::get_observation_id()?;
         let param_type = self
             .param_spec
             .to_param_type()
             .with_context(|| format!("the specification of {:?} is invalid", self.param_name))?;
         let req = rpc::AskReq {
-            run_id,
+            observation_id,
             param_name: ParamName::new(self.param_name.clone()),
             param_type,
         };

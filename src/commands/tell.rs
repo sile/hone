@@ -19,9 +19,9 @@ pub struct TellOpt {
 
 impl TellOpt {
     pub fn tell(&self) -> anyhow::Result<()> {
-        let run_id = envvar::get_run_id()?;
+        let observation_id = envvar::get_observation_id()?;
         let req = rpc::TellReq {
-            run_id,
+            observation_id,
             metric_name: MetricName::new(self.metric_name.clone()),
             metric_type: MetricType {
                 objective: if self.ignore {

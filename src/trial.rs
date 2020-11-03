@@ -26,27 +26,6 @@ impl TrialId {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct RunId(u64);
-
-impl RunId {
-    pub const fn new(id: u64) -> Self {
-        Self(id)
-    }
-
-    pub const fn get(self) -> u64 {
-        self.0
-    }
-
-    pub fn fetch_and_increment(&mut self) -> Self {
-        let id = Self(self.0);
-        self.0 += 1;
-        id
-    }
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
 pub struct ObservationId(u64);
 
 impl ObservationId {
@@ -71,6 +50,7 @@ pub struct Observation {
     pub trial_id: TrialId,
     pub params: BTreeMap<ParamName, ParamInstance>,
     pub metrics: BTreeMap<MetricName, MetricInstance>,
+    // TODO: exit_status
 }
 
 impl Observation {

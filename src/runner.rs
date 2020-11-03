@@ -5,7 +5,7 @@ use crate::optimizer::Action;
 use crate::optimizer::{Optimize, Optimizer};
 use crate::param::{ParamInstance, ParamValue};
 use crate::rpc;
-use crate::trial::{Observation, ObservationId, RunId, TrialId};
+use crate::trial::{Observation, ObservationId, TrialId};
 use anyhow::Context;
 use std::collections::HashMap;
 use std::io::Write;
@@ -22,23 +22,26 @@ pub struct CommandRunnerOpt {
 impl CommandRunnerOpt {
     pub fn spawn(
         &self,
-        run_id: RunId,
+        observation_id: ObservationId,
         rpc_server_addr: std::net::SocketAddr,
     ) -> anyhow::Result<CommandRunner> {
         // TODO: capture stdout/stderr
         let proc = Command::new(&self.path)
             .args(&self.args)
             .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
-            .env(envvar::KEY_RUN_ID, run_id.get().to_string())
+            .env(envvar::KEY_OBSERVATION_ID, observation_id.get().to_string())
             .spawn()
             .with_context(|| format!("Failed to spawn command: {:?}", self.path))?;
-        Ok(CommandRunner { run_id, proc })
+        Ok(CommandRunner {
+            observation_id,
+            proc,
+        })
     }
 }
 
 #[derive(Debug)]
 pub struct CommandRunner {
-    run_id: RunId,
+    observation_id: ObservationId,
     proc: Child,
 }
 
@@ -51,8 +54,8 @@ impl CommandRunner {
 
 #[derive(Debug)]
 pub struct StudyRunnerOpt {
-    // timeout: {study,trial,observation,run}
-    // tempdir: {study,trial,observation,run}
+    // timeout: {study,trial,observation,observation}
+    // tempdir: {study,trial,observation,observation}
     pub study_name: String,
     pub workers: NonZeroUsize,
     pub runs: Option<usize>,
@@ -62,10 +65,10 @@ pub struct StudyRunnerOpt {
 #[derive(Debug)]
 pub struct StudyRunner<W> {
     output: EventWriter<W>,
-    runnings: Vec<CommandRunner>,
-    observations: HashMap<RunId, Observation>,
-    finished_runs: usize,
-    next_run_id: RunId,
+    observationnings: Vec<CommandRunner>,
+    observations: HashMap<ObservationId, Observation>,
+    finished_observations: usize,
+    next_observation_id: ObservationId,
     next_obs_id: ObservationId,
     next_trial_id: TrialId,
     rpc_server_addr: std::net::SocketAddr,
@@ -81,12 +84,12 @@ impl<W: Write> StudyRunner<W> {
 
         Ok(Self {
             output: EventWriter::new(output),
-            runnings: Vec::new(),
+            observationnings: Vec::new(),
             observations: HashMap::new(),
-            finished_runs: 0,
+            finished_observations: 0,
             rpc_server_addr,
             rpc_channel,
-            next_run_id: RunId::new(0),
+            next_observation_id: ObservationId::new(0),
             next_obs_id: ObservationId::new(0),
             next_trial_id: TrialId::new(0),
             optimizer,
@@ -95,10 +98,13 @@ impl<W: Write> StudyRunner<W> {
     }
 
     fn start_observation(&mut self, obs: Observation) -> anyhow::Result<()> {
-        let run_id = self.next_run_id.fetch_and_increment();
-        self.runnings
-            .push(self.opt.command.spawn(run_id, self.rpc_server_addr)?);
-        self.observations.insert(run_id, obs);
+        let observation_id = self.next_observation_id.fetch_and_increment();
+        self.observationnings.push(
+            self.opt
+                .command
+                .spawn(observation_id, self.rpc_server_addr)?,
+        );
+        self.observations.insert(observation_id, obs);
         eprintln!("[HONE] Spawn new process.");
         Ok(())
     }
@@ -109,7 +115,7 @@ impl<W: Write> StudyRunner<W> {
         while !self.is_study_finished() {
             did_nothing = true;
 
-            while self.runnings.len() < self.opt.workers.get() {
+            while self.observationnings.len() < self.opt.workers.get() {
                 match self.optimizer.next_action()? {
                     Action::CreateTrial => {
                         let obs = Observation::new(
@@ -134,7 +140,7 @@ impl<W: Write> StudyRunner<W> {
                         break;
                     }
                     Action::QuitOptimization => {
-                        // TODO: kill running processes
+                        // TODO: kill observationning processes
                         return Ok(());
                     }
                 }
@@ -146,12 +152,15 @@ impl<W: Write> StudyRunner<W> {
             }
 
             let mut i = 0;
-            while i < self.runnings.len() {
-                if let Some(status) = self.runnings[i].try_wait()? {
+            while i < self.observationnings.len() {
+                if let Some(status) = self.observationnings[i].try_wait()? {
                     eprintln!("[HONE] Process exited: {}", status);
-                    let finished = self.runnings.swap_remove(i);
-                    self.finished_runs += 1;
-                    let obs = self.observations.remove(&finished.run_id).expect("bug");
+                    let finished = self.observationnings.swap_remove(i);
+                    self.finished_observations += 1;
+                    let obs = self
+                        .observations
+                        .remove(&finished.observation_id)
+                        .expect("bug");
                     self.optimizer.tell(&obs)?;
                     // TODO: retry if failed
                     did_nothing = false;
@@ -168,7 +177,9 @@ impl<W: Write> StudyRunner<W> {
     }
 
     fn is_study_finished(&self) -> bool {
-        self.opt.runs.map_or(false, |n| self.finished_runs >= n)
+        self.opt
+            .runs
+            .map_or(false, |n| self.finished_observations >= n)
     }
 
     fn handle_message(&mut self, message: rpc::Message) -> anyhow::Result<()> {
@@ -188,8 +199,11 @@ impl<W: Write> StudyRunner<W> {
     fn handle_ask(&mut self, req: rpc::AskReq) -> anyhow::Result<ParamValue> {
         let obs = self
             .observations
-            .get_mut(&req.run_id)
-            .ok_or_else(|| anyhow::anyhow!("unknown run_id {}", req.run_id.get()))?;
+            .get_mut(&req.observation_id)
+            .ok_or_else(|| {
+                anyhow::anyhow!("unknown observation_id {}", req.observation_id.get())
+            })?;
+        // TODO: check whether the parameter has already been asked.
         let value = self.optimizer.ask(obs, &req.param_name, &req.param_type)?;
         obs.params.insert(
             req.param_name,
@@ -202,8 +216,10 @@ impl<W: Write> StudyRunner<W> {
     fn handle_tell(&mut self, req: rpc::TellReq) -> anyhow::Result<()> {
         let obs = self
             .observations
-            .get_mut(&req.run_id)
-            .ok_or_else(|| anyhow::anyhow!("unknown run_id {}", req.run_id.get()))?;
+            .get_mut(&req.observation_id)
+            .ok_or_else(|| {
+                anyhow::anyhow!("unknown observation_id {}", req.observation_id.get())
+            })?;
         obs.metrics.insert(
             req.metric_name,
             MetricInstance::new(req.metric_type, req.metric_value),

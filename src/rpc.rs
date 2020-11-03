@@ -1,7 +1,7 @@
 use crate::envvar;
 use crate::metric::{MetricName, MetricType, MetricValue};
 use crate::param::{ParamName, ParamType, ParamValue};
-use crate::trial::RunId;
+use crate::trial::ObservationId;
 use anyhow::Context;
 use bytecodec::json_codec::{JsonDecoder, JsonEncoder};
 use fibers_rpc::client::ClientServiceBuilder;
@@ -48,7 +48,7 @@ impl Call for AskRpc {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AskReq {
-    pub run_id: RunId,
+    pub observation_id: ObservationId,
     pub param_name: ParamName,
     pub param_type: ParamType,
 }
@@ -71,7 +71,7 @@ impl Call for TellRpc {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TellReq {
-    pub run_id: RunId,
+    pub observation_id: ObservationId,
     pub metric_name: MetricName,
     pub metric_type: MetricType,
     pub metric_value: MetricValue,

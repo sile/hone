@@ -1,9 +1,9 @@
-use crate::trial::{RunId, TrialId};
+use crate::trial::{ObservationId, TrialId};
 use std::net::SocketAddr;
 
 pub const KEY_SERVER_ADDR: &str = "HONE_SERVER_ADDR";
 pub const KEY_TRIAL_ID: &str = "HONE_TRIAL_ID";
-pub const KEY_RUN_ID: &str = "HONE_RUN_ID";
+pub const KEY_OBSERVATION_ID: &str = "HONE_OBSERVATION_ID";
 
 pub fn get_server_addr() -> Result<SocketAddr, EnvVarError> {
     let value = std::env::var(KEY_SERVER_ADDR)
@@ -23,13 +23,13 @@ pub fn get_trial_id() -> Result<TrialId, EnvVarError> {
     Ok(TrialId::new(id))
 }
 
-pub fn get_run_id() -> Result<RunId, EnvVarError> {
-    let value =
-        std::env::var(KEY_RUN_ID).map_err(|e| EnvVarError::from_var_error(KEY_RUN_ID, e))?;
+pub fn get_observation_id() -> Result<ObservationId, EnvVarError> {
+    let value = std::env::var(KEY_OBSERVATION_ID)
+        .map_err(|e| EnvVarError::from_var_error(KEY_OBSERVATION_ID, e))?;
     let id = value
         .parse()
-        .map_err(|e| EnvVarError::from_other_error(KEY_RUN_ID, e))?;
-    Ok(RunId::new(id))
+        .map_err(|e| EnvVarError::from_other_error(KEY_OBSERVATION_ID, e))?;
+    Ok(ObservationId::new(id))
 }
 
 #[derive(Debug, thiserror::Error)]
