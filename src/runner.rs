@@ -70,6 +70,7 @@ pub struct StudyRunnerOpt {
     // timeout: {study,trial,observation,observation}
     // tempdir: {study,trial,observation,observation}
     pub study_name: String,
+    pub study_instance: uuid::Uuid,
     pub resume: Option<PathBuf>,
     pub attrs: BTreeMap<String, String>,
     pub workers: NonZeroUsize,

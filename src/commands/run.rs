@@ -7,9 +7,9 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 pub struct RunOpt {
-    // TODO: Implement
+    // TODO:
     #[structopt(long)]
-    pub tempdir: bool,
+    pub storage: Option<PathBuf>,
 
     #[structopt(long, default_value = "1")]
     pub workers: NonZeroUsize,
@@ -23,6 +23,7 @@ pub struct RunOpt {
     #[structopt(long = "name")]
     pub study_name: Option<String>,
 
+    // TODO: nocapture: Vec<Destination::{Stdout,Stderr}>
     #[structopt(long)]
     pub nocapture_stdout: bool,
 
@@ -48,6 +49,7 @@ impl RunOpt {
             study_name: self
                 .study_name
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            study_instance: uuid::Uuid::new_v4(),
             resume: self.resume,
             attrs: self.attrs.into_iter().map(|a| (a.key, a.value)).collect(),
             workers: self.workers,
