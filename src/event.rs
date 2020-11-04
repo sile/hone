@@ -1,6 +1,6 @@
 use crate::runner::StudyRunnerOpt;
 use crate::trial::{Observation, ObservationId, TrialId};
-use std::io::Write;
+use std::io::{BufRead, Write};
 use std::time::Duration;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -18,7 +18,7 @@ pub enum StudyEvent {
         #[serde(flatten)]
         opt: StudyRunnerOpt,
     },
-    Inherited {
+    Resumed {
         #[serde(flatten)]
         opt: StudyRunnerOpt,
     },
@@ -66,5 +66,26 @@ impl<W: Write> EventWriter<W> {
         serde_json::to_writer(&mut self.writer, &event)?;
         writeln!(&mut self.writer)?;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct EventReader<R> {
+    reader: R,
+}
+
+impl<R: BufRead> EventReader<R> {
+    pub fn new(reader: R) -> Self {
+        Self { reader }
+    }
+
+    pub fn read(&mut self) -> anyhow::Result<Option<Event>> {
+        let mut buf = String::new();
+        let size = self.reader.read_line(&mut buf)?;
+        if size == 0 {
+            return Ok(None);
+        }
+        let event = serde_json::from_str(&buf)?;
+        Ok(Some(event))
     }
 }

@@ -1,6 +1,5 @@
 use crate::envvar;
-use crate::event::EventWriter;
-use crate::event::{Event, ObservationEvent, StudyEvent, TrialEvent};
+use crate::event::{Event, EventReader, EventWriter, ObservationEvent, StudyEvent, TrialEvent};
 use crate::metric::MetricInstance;
 use crate::optimizer::Action;
 use crate::optimizer::{Optimize, Optimizer};
@@ -71,6 +70,7 @@ pub struct StudyRunnerOpt {
     // timeout: {study,trial,observation,observation}
     // tempdir: {study,trial,observation,observation}
     pub study_name: String,
+    pub resume: Option<PathBuf>,
     pub attrs: BTreeMap<String, String>,
     pub workers: NonZeroUsize,
     pub runs: Option<usize>,
@@ -85,7 +85,6 @@ pub struct StudyRunner<W> {
     observationnings: Vec<CommandRunner>,
     observations: HashMap<ObservationId, Observation>,
     finished_observations: usize,
-    next_observation_id: ObservationId,
     next_obs_id: ObservationId,
     next_trial_id: TrialId,
     rpc_server_addr: std::net::SocketAddr,
@@ -105,7 +104,6 @@ impl<W: Write> StudyRunner<W> {
             finished_observations: 0,
             rpc_server_addr,
             rpc_channel,
-            next_observation_id: ObservationId::new(0),
             next_obs_id: ObservationId::new(0),
             next_trial_id: TrialId::new(0),
             optimizer,
@@ -115,7 +113,7 @@ impl<W: Write> StudyRunner<W> {
     }
 
     fn start_observation(&mut self, obs: Observation) -> anyhow::Result<()> {
-        let observation_id = self.next_observation_id.fetch_and_increment();
+        let observation_id = self.next_obs_id.fetch_and_increment();
         self.output.write(Event::Obs(ObservationEvent::Started {
             obs_id: observation_id,
             trial_id: obs.trial_id,
@@ -130,10 +128,45 @@ impl<W: Write> StudyRunner<W> {
         Ok(())
     }
 
+    fn resume_study(&mut self, path: PathBuf) -> anyhow::Result<()> {
+        let file =
+            std::fs::File::open(&path).with_context(|| format!("Cannot open file: {:?}", path))?;
+        let mut reader = EventReader::new(std::io::BufReader::new(file));
+        while let Some(event) = reader.read()? {
+            match &event {
+                Event::Study(_) => {}
+                Event::Trial(e) => match e {
+                    TrialEvent::Started { trial_id, .. } => {
+                        self.next_trial_id = TrialId::new(trial_id.get() + 1);
+                    }
+                    _ => {}
+                },
+                Event::Obs(e) => match e {
+                    ObservationEvent::Started { obs_id, .. } => {
+                        self.next_obs_id = ObservationId::new(obs_id.get() + 1);
+                    }
+                    ObservationEvent::Finished { obs, .. } => {
+                        self.optimizer.tell(&obs)?;
+                    }
+                },
+            }
+            self.output.write(event)?;
+        }
+        Ok(())
+    }
+
     pub fn run(mut self) -> anyhow::Result<()> {
-        self.output.write(Event::Study(StudyEvent::Started {
-            opt: self.opt.clone(),
-        }))?;
+        if let Some(path) = self.opt.resume.clone() {
+            self.resume_study(path)?;
+            self.output.write(Event::Study(StudyEvent::Resumed {
+                opt: self.opt.clone(),
+            }))?;
+        } else {
+            self.output.write(Event::Study(StudyEvent::Started {
+                opt: self.opt.clone(),
+            }))?;
+        }
+        self.start_time = Instant::now();
 
         let mut did_nothing;
         while !self.is_study_finished() {

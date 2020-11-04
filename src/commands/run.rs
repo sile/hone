@@ -35,8 +35,9 @@ pub struct RunOpt {
     #[structopt(long)]
     pub attrs: Vec<Attr>,
 
-    // TODO: inherit | resume
-    // TODO: timeout
+    #[structopt(long)]
+    pub resume: Option<PathBuf>,
+
     pub command: String,
     pub args: Vec<String>,
 }
@@ -47,6 +48,7 @@ impl RunOpt {
             study_name: self
                 .study_name
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            resume: self.resume,
             attrs: self.attrs.into_iter().map(|a| (a.key, a.value)).collect(),
             workers: self.workers,
             runs: self.repeat,

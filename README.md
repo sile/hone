@@ -19,3 +19,14 @@ curl -L $SCRIPT_URL | python -u - --lr=$LR --gamma=$GAMMA --epochs 3 | tee /tmp/
 
 grep -oP '(?<=Test set: Average loss: )[0-9.]*' /tmp/mnist.log | tail -1 | xargs hone report
 ```
+
+Tips
+----
+
+### How to set timeout to a study or a trial
+
+Please use `timeout` command.
+
+```
+# TODO: example
+```
