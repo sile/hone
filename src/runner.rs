@@ -67,8 +67,6 @@ impl CommandRunner {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StudyRunnerOpt {
-    // timeout: {study,trial,observation,observation}
-    // tempdir: {study,trial,observation,observation}
     pub study_name: String,
     pub study_instance: uuid::Uuid,
     pub resume: Option<PathBuf>,
@@ -77,7 +75,7 @@ pub struct StudyRunnerOpt {
     pub runs: Option<usize>,
     pub command: CommandRunnerOpt,
     pub output: Option<PathBuf>,
-    // attrs
+    pub storage: Option<PathBuf>,
 }
 
 #[derive(Debug)]

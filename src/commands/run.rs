@@ -8,6 +8,10 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 pub struct RunOpt {
     // TODO:
+    // - ${study_name}/${instance}/
+    //    - events.log
+    //    - tmp/{trials,observations}
+    //    - log/{trials,observations}
     #[structopt(long)]
     pub storage: Option<PathBuf>,
 
@@ -35,7 +39,9 @@ pub struct RunOpt {
 
     #[structopt(long)]
     pub attrs: Vec<Attr>,
+    // attr-git-commit, attr-timestamp
 
+    // TODO: support multiple paths
     #[structopt(long)]
     pub resume: Option<PathBuf>,
 
@@ -55,6 +61,7 @@ impl RunOpt {
             workers: self.workers,
             runs: self.repeat,
             output: self.output.clone(),
+            storage: self.storage,
             command: CommandRunnerOpt {
                 path: self.command.clone(),
                 args: self.args.clone(),

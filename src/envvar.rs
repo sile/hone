@@ -3,7 +3,13 @@ use std::net::SocketAddr;
 
 pub const KEY_SERVER_ADDR: &str = "HONE_SERVER_ADDR";
 pub const KEY_TRIAL_ID: &str = "HONE_TRIAL_ID";
-pub const KEY_OBSERVATION_ID: &str = "HONE_OBSERVATION_ID";
+pub const KEY_OBSERVATION_ID: &str = "HONE_OBS_ID";
+pub const KEY_STUDY_DIR: &str = "HONE_STUDY_DIR";
+pub const KEY_TRIAL_DIR: &str = "HONE_TRIAL_DIR";
+pub const KEY_OBSERVATION_DIR: &str = "HONE_OBS_DIR";
+pub const KEY_STUDY_TEMP_DIR: &str = "HONE_STUDY_TEMP_DIR";
+pub const KEY_TRIAL_TEMP_DIR: &str = "HONE_TRIAL_TEMP_DIR";
+pub const KEY_OBSERVATION_TEMP_DIR: &str = "HONE_OBS_TEMP_DIR";
 
 pub fn get_server_addr() -> Result<SocketAddr, EnvVarError> {
     let value = std::env::var(KEY_SERVER_ADDR)
