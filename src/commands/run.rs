@@ -1,3 +1,4 @@
+use crate::attr::Attr;
 use crate::optimizer::OptimizerSpec;
 use crate::runner::{CommandRunnerOpt, StudyRunner, StudyRunnerOpt};
 use std::num::NonZeroUsize;
@@ -31,7 +32,9 @@ pub struct RunOpt {
     #[structopt(long, short = "o")]
     pub output: Option<PathBuf>,
 
-    // TODO: attrs
+    #[structopt(long)]
+    pub attrs: Vec<Attr>,
+
     // TODO: inherit | resume
     // TODO: timeout
     pub command: String,
@@ -44,6 +47,7 @@ impl RunOpt {
             study_name: self
                 .study_name
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            attrs: self.attrs.into_iter().map(|a| (a.key, a.value)).collect(),
             workers: self.workers,
             runs: self.repeat,
             output: self.output.clone(),

@@ -8,7 +8,7 @@ use crate::param::{ParamInstance, ParamValue};
 use crate::rpc;
 use crate::trial::{Observation, ObservationId, TrialId};
 use anyhow::Context;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
@@ -71,6 +71,7 @@ pub struct StudyRunnerOpt {
     // timeout: {study,trial,observation,observation}
     // tempdir: {study,trial,observation,observation}
     pub study_name: String,
+    pub attrs: BTreeMap<String, String>,
     pub workers: NonZeroUsize,
     pub runs: Option<usize>,
     pub command: CommandRunnerOpt,
@@ -171,7 +172,7 @@ impl<W: Write> StudyRunner<W> {
                         break;
                     }
                     Action::QuitOptimization => {
-                        // TODO: kill observationning processes
+                        // TODO: kill running processes
                         return Ok(());
                     }
                 }

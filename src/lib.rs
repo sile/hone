@@ -1,3 +1,4 @@
+pub mod attr;
 pub mod commands;
 pub mod envvar;
 pub mod event;
