@@ -27,6 +27,7 @@ impl CommandRunnerOpt {
         &self,
         observation_id: ObservationId,
         rpc_server_addr: std::net::SocketAddr,
+        study_opt: &StudyRunnerOpt,
     ) -> anyhow::Result<CommandRunner> {
         // TODO: capture stdout/stderr
         let mut command = Command::new(&self.path);
@@ -36,10 +37,22 @@ impl CommandRunnerOpt {
             .env(envvar::KEY_OBSERVATION_ID, observation_id.get().to_string())
             .stdin(Stdio::null());
         if !self.nocapture_stdout {
-            command.stdout(Stdio::null()); // TODO: redict to file
+            let stdio = if let Some(root) = study_opt.log_root_dir() {
+                let path = root.join(format!("{}-stdout.log", observation_id.get()));
+                Stdio::from(std::fs::File::create(path)?)
+            } else {
+                Stdio::null()
+            };
+            command.stdout(stdio);
         }
         if !self.nocapture_stderr {
-            command.stderr(Stdio::null()); // TODO: redict to file
+            let stdio = if let Some(root) = study_opt.log_root_dir() {
+                let path = root.join(format!("{}-stderr.log", observation_id.get()));
+                Stdio::from(std::fs::File::create(path)?)
+            } else {
+                Stdio::null()
+            };
+            command.stderr(stdio);
         }
 
         let proc = command
@@ -75,7 +88,18 @@ pub struct StudyRunnerOpt {
     pub runs: Option<usize>,
     pub command: CommandRunnerOpt,
     pub output: Option<PathBuf>,
-    pub storage: Option<PathBuf>,
+    pub log_dir: Option<PathBuf>,
+    pub tmp_dir: Option<PathBuf>, // TODO
+}
+
+impl StudyRunnerOpt {
+    fn log_root_dir(&self) -> Option<PathBuf> {
+        // TODO: escape study_name
+        self.log_dir.as_ref().map(|root| {
+            root.join(&self.study_name)
+                .join(&self.study_instance.to_string())
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -118,11 +142,11 @@ impl<W: Write> StudyRunner<W> {
             trial_id: obs.trial_id,
             elapsed: self.start_time.elapsed(),
         }))?;
-        self.observationnings.push(
-            self.opt
-                .command
-                .spawn(observation_id, self.rpc_server_addr)?,
-        );
+        self.observationnings.push(self.opt.command.spawn(
+            observation_id,
+            self.rpc_server_addr,
+            &self.opt,
+        )?);
         self.observations.insert(observation_id, obs);
         Ok(())
     }
@@ -154,7 +178,17 @@ impl<W: Write> StudyRunner<W> {
         Ok(())
     }
 
+    fn init_log_dir(&mut self) -> anyhow::Result<()> {
+        if let Some(root) = self.opt.log_root_dir() {
+            std::fs::create_dir_all(&root)?;
+            self.output.add_file(root.join("events.json"))?;
+        }
+        Ok(())
+    }
+
     pub fn run(mut self) -> anyhow::Result<()> {
+        self.init_log_dir()?;
+
         if let Some(path) = self.opt.resume.clone() {
             self.resume_study(path)?;
             self.output.write(Event::Study(StudyEvent::Resumed {
@@ -165,6 +199,7 @@ impl<W: Write> StudyRunner<W> {
                 opt: self.opt.clone(),
             }))?;
         }
+
         self.start_time = Instant::now();
 
         let mut did_nothing;

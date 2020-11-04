@@ -55,16 +55,26 @@ pub enum ObservationEvent {
 #[derive(Debug)]
 pub struct EventWriter<W> {
     writer: W,
+    file: Option<std::fs::File>,
 }
 
 impl<W: Write> EventWriter<W> {
     pub fn new(writer: W) -> Self {
-        Self { writer }
+        Self { writer, file: None }
     }
 
     pub fn write(&mut self, event: Event) -> anyhow::Result<()> {
         serde_json::to_writer(&mut self.writer, &event)?;
         writeln!(&mut self.writer)?;
+        if let Some(mut f) = self.file.as_mut() {
+            serde_json::to_writer(&mut f, &event)?;
+            writeln!(&mut f)?;
+        }
+        Ok(())
+    }
+
+    pub fn add_file<P: AsRef<std::path::Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        self.file = Some(std::fs::File::create(path)?);
         Ok(())
     }
 }
