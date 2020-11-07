@@ -78,6 +78,29 @@ pub struct TellReq {
 }
 
 #[derive(Debug)]
+pub struct MktempRpc;
+
+impl Call for MktempRpc {
+    const ID: ProcedureId = ProcedureId(2);
+    const NAME: &'static str = "mktemp";
+
+    type Req = MktempReq;
+    type ReqEncoder = JsonEncoder<Self::Req>;
+    type ReqDecoder = JsonDecoder<Self::Req>;
+
+    type Res = std::path::PathBuf;
+    type ResEncoder = JsonEncoder<Self::Res>;
+    type ResDecoder = JsonDecoder<Self::Res>;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MktempReq {
+    pub observation_id: ObservationId,
+    pub parent: Option<std::path::PathBuf>,
+    pub scope: crate::types::Scope,
+}
+
+#[derive(Debug)]
 pub enum Message {
     Ask {
         req: AskReq,
@@ -86,6 +109,10 @@ pub enum Message {
     Tell {
         req: TellReq,
         reply: fibers::sync::oneshot::Sender<()>,
+    },
+    Mktemp {
+        req: MktempReq,
+        reply: fibers::sync::oneshot::Sender<std::path::PathBuf>,
     },
 }
 
@@ -114,6 +141,7 @@ impl fibers_rpc::server::HandleCall<AskRpc> for AskHandler {
     fn handle_call(&self, req: <AskRpc as Call>::Req) -> fibers_rpc::server::Reply<AskRpc> {
         let (tx, rx) = fibers::sync::oneshot::channel();
         let _ = self.tx.send(Message::Ask { req, reply: tx });
+        // TODO: Don't panic here.
         fibers_rpc::server::Reply::future(rx.map_err(|e| panic!("Error: {}", e)))
     }
 }
@@ -131,6 +159,19 @@ impl fibers_rpc::server::HandleCall<TellRpc> for TellHandler {
     }
 }
 
+#[derive(Debug)]
+pub struct MktempHandler {
+    tx: fibers::sync::mpsc::Sender<Message>,
+}
+
+impl fibers_rpc::server::HandleCall<MktempRpc> for MktempHandler {
+    fn handle_call(&self, req: <MktempRpc as Call>::Req) -> fibers_rpc::server::Reply<MktempRpc> {
+        let (tx, rx) = fibers::sync::oneshot::channel();
+        let _ = self.tx.send(Message::Mktemp { req, reply: tx });
+        fibers_rpc::server::Reply::future(rx.map_err(|e| panic!("Error: {}", e)))
+    }
+}
+
 // TODO:
 pub fn spawn_rpc_server() -> anyhow::Result<(SocketAddr, Channel)> {
     // // TODO: for debug
@@ -143,6 +184,7 @@ pub fn spawn_rpc_server() -> anyhow::Result<(SocketAddr, Channel)> {
     let (tx, rx) = fibers::sync::mpsc::channel();
     builder.add_call_handler(AskHandler { tx: tx.clone() });
     builder.add_call_handler(TellHandler { tx: tx.clone() });
+    builder.add_call_handler(MktempHandler { tx: tx.clone() });
     let server = builder.finish(fibers_global::handle());
     let (server, addr) = fibers_global::execute(server.local_addr())?;
     fibers_global::spawn(server.map_err(|e| panic!("{}", e)));

@@ -6,6 +6,7 @@ use crate::optimizer::{Optimize, Optimizer};
 use crate::param::{ParamInstance, ParamValue};
 use crate::rpc;
 use crate::trial::{Observation, ObservationId, TrialId};
+use crate::types::Scope;
 use anyhow::Context;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
@@ -29,8 +30,8 @@ impl CommandRunnerOpt {
         rpc_server_addr: std::net::SocketAddr,
         study_opt: &StudyRunnerOpt,
     ) -> anyhow::Result<CommandRunner> {
-        // TODO: capture stdout/stderr
         let mut command = Command::new(&self.path);
+        // TODO: trial_id and study_instance_id
         command
             .args(&self.args)
             .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
@@ -89,7 +90,6 @@ pub struct StudyRunnerOpt {
     pub command: CommandRunnerOpt,
     pub output: Option<PathBuf>,
     pub log_dir: Option<PathBuf>,
-    pub tmp_dir: Option<PathBuf>, // TODO
 }
 
 impl StudyRunnerOpt {
@@ -105,7 +105,7 @@ impl StudyRunnerOpt {
 #[derive(Debug)]
 pub struct StudyRunner<W> {
     output: EventWriter<W>,
-    observationnings: Vec<CommandRunner>,
+    runnings: Vec<CommandRunner>,
     observations: HashMap<ObservationId, Observation>,
     finished_observations: usize,
     next_obs_id: ObservationId,
@@ -115,6 +115,9 @@ pub struct StudyRunner<W> {
     optimizer: Optimizer,
     opt: StudyRunnerOpt,
     start_time: Instant,
+    study_temp_dir: Option<tempfile::TempDir>,
+    trial_temp_dirs: HashMap<TrialId, tempfile::TempDir>,
+    obs_temp_dirs: HashMap<ObservationId, tempfile::TempDir>,
 }
 
 impl<W: Write> StudyRunner<W> {
@@ -122,7 +125,7 @@ impl<W: Write> StudyRunner<W> {
         let (rpc_server_addr, rpc_channel) = rpc::spawn_rpc_server()?;
         Ok(Self {
             output: EventWriter::new(output),
-            observationnings: Vec::new(),
+            runnings: Vec::new(),
             observations: HashMap::new(),
             finished_observations: 0,
             rpc_server_addr,
@@ -132,6 +135,9 @@ impl<W: Write> StudyRunner<W> {
             optimizer,
             opt,
             start_time: Instant::now(),
+            study_temp_dir: None,
+            trial_temp_dirs: HashMap::new(),
+            obs_temp_dirs: HashMap::new(),
         })
     }
 
@@ -142,7 +148,7 @@ impl<W: Write> StudyRunner<W> {
             trial_id: obs.trial_id,
             elapsed: self.start_time.elapsed(),
         }))?;
-        self.observationnings.push(self.opt.command.spawn(
+        self.runnings.push(self.opt.command.spawn(
             observation_id,
             self.rpc_server_addr,
             &self.opt,
@@ -206,7 +212,7 @@ impl<W: Write> StudyRunner<W> {
         while !self.is_study_finished() {
             did_nothing = true;
 
-            while self.observationnings.len() < self.opt.workers.get() {
+            while self.runnings.len() < self.opt.workers.get() {
                 match self.optimizer.next_action()? {
                     Action::CreateTrial => {
                         let obs = Observation::new(
@@ -233,7 +239,7 @@ impl<W: Write> StudyRunner<W> {
                             trial_id,
                             elapsed: self.start_time.elapsed(),
                         }))?;
-                        todo!("sweep resource");
+                        self.trial_temp_dirs.remove(&trial_id);
                     }
                     Action::WaitObservations => {
                         break;
@@ -251,9 +257,9 @@ impl<W: Write> StudyRunner<W> {
             }
 
             let mut i = 0;
-            while i < self.observationnings.len() {
-                if let Some(status) = self.observationnings[i].try_wait()? {
-                    let finished = self.observationnings.swap_remove(i);
+            while i < self.runnings.len() {
+                if let Some(status) = self.runnings[i].try_wait()? {
+                    let finished = self.runnings.swap_remove(i);
                     self.finished_observations += 1;
                     let mut obs = self
                         .observations
@@ -262,13 +268,16 @@ impl<W: Write> StudyRunner<W> {
                     obs.exit_status = status.code();
                     let trial_finished = self.optimizer.tell(&obs)?;
 
+                    let obs_id = obs.id;
                     let trial_id = obs.trial_id;
                     let elapsed = self.start_time.elapsed();
                     self.output
                         .write(Event::Obs(ObservationEvent::Finished { obs, elapsed }))?;
+                    self.obs_temp_dirs.remove(&obs_id);
                     if trial_finished {
                         self.output
                             .write(Event::Trial(TrialEvent::Finished { trial_id, elapsed }))?;
+                        self.trial_temp_dirs.remove(&trial_id);
                     }
                     did_nothing = false;
                 } else {
@@ -299,8 +308,72 @@ impl<W: Write> StudyRunner<W> {
                 self.handle_tell(req)?;
                 reply.send(())?;
             }
+            rpc::Message::Mktemp { req, reply } => {
+                let path = self.handle_mktemp(req)?;
+                reply.send(path)?;
+            }
         }
         Ok(())
+    }
+
+    fn ensure_temp_dir_created(
+        tempdir: Option<&tempfile::TempDir>,
+        parent: Option<&PathBuf>,
+    ) -> anyhow::Result<(Option<tempfile::TempDir>, PathBuf)> {
+        if let Some(temp) = tempdir {
+            Ok((None, temp.path().to_path_buf()))
+        } else if let Some(parent) = parent {
+            std::fs::create_dir_all(parent)?;
+            let temp = tempfile::TempDir::new_in(parent)?;
+            let path = temp.path().to_path_buf();
+            Ok((Some(temp), path))
+        } else {
+            let temp = tempfile::TempDir::new()?;
+            let path = temp.path().to_path_buf();
+            Ok((Some(temp), path))
+        }
+    }
+
+    fn handle_mktemp(&mut self, req: rpc::MktempReq) -> anyhow::Result<PathBuf> {
+        match req.scope {
+            Scope::Study => {
+                let (temp, path) = Self::ensure_temp_dir_created(
+                    self.study_temp_dir.as_ref(),
+                    req.parent.as_ref(),
+                )?;
+                if let Some(temp) = temp {
+                    self.study_temp_dir = Some(temp)
+                }
+                Ok(path)
+            }
+            Scope::Observation => {
+                let (temp, path) = Self::ensure_temp_dir_created(
+                    self.obs_temp_dirs.get(&req.observation_id),
+                    req.parent.as_ref(),
+                )?;
+                if let Some(temp) = temp {
+                    self.obs_temp_dirs.insert(req.observation_id, temp);
+                }
+                Ok(path)
+            }
+            _ => {
+                let trial_id = self
+                    .observations
+                    .get(&req.observation_id)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("unknown observation: {:?}", req.observation_id)
+                    })?
+                    .trial_id;
+                let (temp, path) = Self::ensure_temp_dir_created(
+                    self.trial_temp_dirs.get(&trial_id),
+                    req.parent.as_ref(),
+                )?;
+                if let Some(temp) = temp {
+                    self.trial_temp_dirs.insert(trial_id, temp);
+                }
+                Ok(path)
+            }
+        }
     }
 
     fn handle_ask(&mut self, req: rpc::AskReq) -> anyhow::Result<ParamValue> {
@@ -316,7 +389,6 @@ impl<W: Write> StudyRunner<W> {
             req.param_name,
             ParamInstance::new(req.param_type, value.clone()),
         );
-        // TODO: record event
         Ok(value)
     }
 

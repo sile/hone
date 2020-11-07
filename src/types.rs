@@ -124,3 +124,27 @@ impl TryFrom<f64> for FiniteF64 {
         Self::new(from)
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum Scope {
+    Observation,
+    Trial,
+    Study,
+}
+
+impl Scope {
+    pub const CHOICES: &'static [&'static str] = &["observation", "trial", "study"];
+}
+
+impl std::str::FromStr for Scope {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "observation" => Ok(Self::Observation),
+            "trial" => Ok(Self::Trial),
+            "study" => Ok(Self::Study),
+            _ => anyhow::bail!("unknown scope {:?}", s),
+        }
+    }
+}

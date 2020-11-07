@@ -2,6 +2,7 @@ use crate::trial::{ObservationId, TrialId};
 use std::net::SocketAddr;
 
 pub const KEY_SERVER_ADDR: &str = "HONE_SERVER_ADDR";
+pub const KEY_STUDY_INSTNACE_ID: &str = "HONE_STUDY_INSTANCE_ID";
 pub const KEY_TRIAL_ID: &str = "HONE_TRIAL_ID";
 pub const KEY_OBSERVATION_ID: &str = "HONE_OBS_ID";
 pub const KEY_STUDY_DIR: &str = "HONE_STUDY_DIR";
@@ -18,6 +19,11 @@ pub fn get_server_addr() -> Result<SocketAddr, EnvVarError> {
         .parse()
         .map_err(|e| EnvVarError::from_other_error(KEY_SERVER_ADDR, e))?;
     Ok(server_addr)
+}
+
+pub fn get_string(key: &'static str) -> Result<String, EnvVarError> {
+    let value = std::env::var(key).map_err(|e| EnvVarError::from_var_error(key, e))?;
+    Ok(value)
 }
 
 pub fn get_trial_id() -> Result<TrialId, EnvVarError> {

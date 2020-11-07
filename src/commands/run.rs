@@ -8,11 +8,9 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct RunOpt {
+    // TODO: capture_dir
     #[structopt(long)]
     pub log_dir: Option<PathBuf>,
-
-    #[structopt(long)]
-    pub tmp_dir: Option<PathBuf>,
 
     #[structopt(long, default_value = "1")]
     pub workers: NonZeroUsize,
@@ -61,7 +59,6 @@ impl RunOpt {
             runs: self.repeat,
             output: self.output.clone(),
             log_dir: self.log_dir,
-            tmp_dir: self.tmp_dir,
             command: CommandRunnerOpt {
                 path: self.command.clone(),
                 args: self.args.clone(),

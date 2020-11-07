@@ -6,7 +6,14 @@ enum Opt {
     Ask(hone::commands::ask::AskOpt),
     Tell(hone::commands::tell::TellOpt),
     Run(hone::commands::run::RunOpt),
+    // TODO: Tuner or Tune
     Optim(hone::commands::optim::OptimOpt),
+    Get(hone::commands::get::GetOpt),
+    // Summarize or digest or analyze or show
+    // Plot
+    // Watch
+    // Import
+    // Export
 }
 
 fn main() -> anyhow::Result<()> {
@@ -27,6 +34,10 @@ fn main() -> anyhow::Result<()> {
         Opt::Optim(opt) => {
             serde_json::to_writer(std::io::stdout().lock(), &opt.spec)?;
             println!();
+        }
+        Opt::Get(opt) => {
+            let value = opt.get()?;
+            println!("{}", value);
         }
     }
     Ok(())

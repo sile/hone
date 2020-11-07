@@ -29,6 +29,7 @@ pub enum StudyEvent {
 pub enum TrialEvent {
     Started {
         trial_id: TrialId,
+        // TODO: study_instance(?)
         elapsed: Duration, // TODO: ElapsedSeconds
     },
     Finished {
@@ -73,6 +74,7 @@ impl<W: Write> EventWriter<W> {
         Ok(())
     }
 
+    // TODO: remove
     pub fn add_file<P: AsRef<std::path::Path>>(&mut self, path: P) -> anyhow::Result<()> {
         self.file = Some(std::fs::File::create(path)?);
         Ok(())
