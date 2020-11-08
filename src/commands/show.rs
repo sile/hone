@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 #[structopt(rename_all = "kebab-case")]
 pub enum ShowOpt {
     Best,
-    // ParetFront
+    // ParetFront, Trial, Observation
 }
 
 impl ShowOpt {
