@@ -49,4 +49,12 @@ impl MetricInstance {
     pub const fn new(ty: MetricType, value: MetricValue) -> Self {
         Self { ty, value }
     }
+
+    pub fn is_better_than(&self, other: MetricValue) -> bool {
+        match self.ty.objective {
+            None => false,
+            Some(Objective::Minimize) => self.value < other,
+            Some(Objective::Maximize) => self.value > other,
+        }
+    }
 }

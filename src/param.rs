@@ -24,6 +24,18 @@ impl ParamInstance {
     pub const fn new(ty: ParamType, value: ParamValue) -> Self {
         Self { ty, value }
     }
+
+    pub fn is_max_fidelity(&self) -> Option<bool> {
+        if let Self {
+            ty: ParamType::Num(NumParamType::Fidelity(ty)),
+            value: ParamValue::Num(value),
+        } = self
+        {
+            Some(ty.range.max() == *value)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

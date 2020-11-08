@@ -14,14 +14,11 @@ pub enum Event {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StudyEvent {
-    Started {
+    Defined {
         #[serde(flatten)]
         opt: StudyRunnerOpt,
     },
-    Resumed {
-        #[serde(flatten)]
-        opt: StudyRunnerOpt,
-    },
+    Started, // TODO: resume_info
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -142,18 +142,17 @@ impl<W: Write> StudyRunner<W> {
     }
 
     fn start_observation(&mut self, obs: Observation) -> anyhow::Result<()> {
-        let observation_id = self.next_obs_id.fetch_and_increment();
         self.output.write(Event::Obs(ObservationEvent::Started {
-            obs_id: observation_id,
+            obs_id: obs.id,
             trial_id: obs.trial_id,
             elapsed: self.start_time.elapsed(),
         }))?;
-        self.runnings.push(self.opt.command.spawn(
-            observation_id,
-            self.rpc_server_addr,
-            &self.opt,
-        )?);
-        self.observations.insert(observation_id, obs);
+        self.runnings.push(
+            self.opt
+                .command
+                .spawn(obs.id, self.rpc_server_addr, &self.opt)?,
+        );
+        self.observations.insert(obs.id, obs);
         Ok(())
     }
 
@@ -163,7 +162,9 @@ impl<W: Write> StudyRunner<W> {
         let mut reader = EventReader::new(std::io::BufReader::new(file));
         while let Some(event) = reader.read()? {
             match &event {
-                Event::Study(_) => {}
+                Event::Study(_) => {
+                    continue;
+                }
                 Event::Trial(e) => match e {
                     TrialEvent::Started { trial_id, .. } => {
                         self.next_trial_id = TrialId::new(trial_id.get() + 1);
@@ -195,17 +196,13 @@ impl<W: Write> StudyRunner<W> {
     pub fn run(mut self) -> anyhow::Result<()> {
         self.init_log_dir()?;
 
+        self.output.write(Event::Study(StudyEvent::Defined {
+            opt: self.opt.clone(),
+        }))?;
+        self.output.write(Event::Study(StudyEvent::Started))?;
         if let Some(path) = self.opt.resume.clone() {
             self.resume_study(path)?;
-            self.output.write(Event::Study(StudyEvent::Resumed {
-                opt: self.opt.clone(),
-            }))?;
-        } else {
-            self.output.write(Event::Study(StudyEvent::Started {
-                opt: self.opt.clone(),
-            }))?;
         }
-
         self.start_time = Instant::now();
 
         let mut did_nothing;

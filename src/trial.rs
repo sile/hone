@@ -1,5 +1,5 @@
-use crate::metric::{MetricInstance, MetricName};
-use crate::param::{ParamInstance, ParamName};
+use crate::metric::{MetricInstance, MetricName, MetricValue};
+use crate::param::{ParamInstance, ParamName, ParamValue};
 use std::collections::BTreeMap;
 
 #[derive(
@@ -64,4 +64,38 @@ impl Observation {
             exit_status: None,
         }
     }
+
+    pub fn is_max_fidelity(&self) -> bool {
+        self.exit_status == Some(0)
+            && self
+                .params
+                .values()
+                .all(|p| p.is_max_fidelity().unwrap_or(true))
+    }
+
+    pub fn to_compact(&self) -> CompactObservation {
+        CompactObservation {
+            id: self.id,
+            trial_id: self.trial_id,
+            params: self
+                .params
+                .iter()
+                .map(|(k, v)| (k.clone(), v.value.clone()))
+                .collect(),
+            metrics: self
+                .metrics
+                .iter()
+                .map(|(k, v)| (k.clone(), v.value.clone()))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CompactObservation {
+    #[serde(rename = "obs_id")]
+    pub id: ObservationId,
+    pub trial_id: TrialId,
+    pub params: BTreeMap<ParamName, ParamValue>,
+    pub metrics: BTreeMap<MetricName, MetricValue>,
 }
