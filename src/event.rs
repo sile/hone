@@ -11,6 +11,12 @@ pub enum Event {
     Obs(ObservationEvent),
 }
 
+#[derive(Debug)]
+pub enum EventOrLine {
+    Event(Event),
+    Line(String, anyhow::Error),
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StudyEvent {
@@ -96,5 +102,17 @@ impl<R: BufRead> EventReader<R> {
         }
         let event = serde_json::from_str(&buf)?;
         Ok(Some(event))
+    }
+
+    pub fn read_event_or_line(&mut self) -> anyhow::Result<Option<EventOrLine>> {
+        let mut buf = String::new();
+        let size = self.reader.read_line(&mut buf)?;
+        if size == 0 {
+            return Ok(None);
+        }
+        match serde_json::from_str(&buf) {
+            Ok(event) => Ok(Some(EventOrLine::Event(event))),
+            Err(err) => Ok(Some(EventOrLine::Line(buf, err.into()))),
+        }
     }
 }
