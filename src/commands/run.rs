@@ -8,10 +8,6 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct RunOpt {
-    // TODO: capture_dir
-    #[structopt(long)]
-    pub log_dir: Option<PathBuf>,
-
     #[structopt(long, default_value = "1")]
     pub workers: NonZeroUsize,
 
@@ -24,19 +20,11 @@ pub struct RunOpt {
     #[structopt(long = "name")]
     pub study_name: Option<String>,
 
-    // TODO: nocapture: Vec<Destination::{Stdout,Stderr}>
-    #[structopt(long)]
-    pub nocapture_stdout: bool,
-
-    #[structopt(long)]
-    pub nocapture_stderr: bool,
-
     #[structopt(long, short = "o")]
     pub output: Option<PathBuf>,
 
     #[structopt(long)]
     pub attrs: Vec<Attr>,
-    // attr-git-commit, attr-timestamp
 
     // TODO: support multiple paths
     #[structopt(long)]
@@ -58,12 +46,9 @@ impl RunOpt {
             workers: self.workers,
             runs: self.repeat,
             output: self.output.clone(),
-            log_dir: self.log_dir,
             command: CommandRunnerOpt {
                 path: self.command.clone(),
                 args: self.args.clone(),
-                nocapture_stdout: self.nocapture_stdout,
-                nocapture_stderr: self.nocapture_stderr,
             },
         };
         let optimizer = self.optim.clone().unwrap_or_default().build()?;

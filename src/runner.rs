@@ -19,8 +19,6 @@ use std::time::{Duration, Instant};
 pub struct CommandRunnerOpt {
     pub path: String,
     pub args: Vec<String>,
-    pub nocapture_stdout: bool,
-    pub nocapture_stderr: bool,
 }
 
 impl CommandRunnerOpt {
@@ -28,34 +26,14 @@ impl CommandRunnerOpt {
         &self,
         observation_id: ObservationId,
         rpc_server_addr: std::net::SocketAddr,
-        study_opt: &StudyRunnerOpt,
     ) -> anyhow::Result<CommandRunner> {
         let mut command = Command::new(&self.path);
-        // TODO: trial_id and study_instance_id
+        // TODO: trial_id and study_instance_id envs
         command
             .args(&self.args)
             .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
             .env(envvar::KEY_OBSERVATION_ID, observation_id.get().to_string())
             .stdin(Stdio::null());
-        if !self.nocapture_stdout {
-            let stdio = if let Some(root) = study_opt.log_root_dir() {
-                let path = root.join(format!("{}-stdout.log", observation_id.get()));
-                Stdio::from(std::fs::File::create(path)?)
-            } else {
-                Stdio::null()
-            };
-            command.stdout(stdio);
-        }
-        if !self.nocapture_stderr {
-            let stdio = if let Some(root) = study_opt.log_root_dir() {
-                let path = root.join(format!("{}-stderr.log", observation_id.get()));
-                Stdio::from(std::fs::File::create(path)?)
-            } else {
-                Stdio::null()
-            };
-            command.stderr(stdio);
-        }
-
         let proc = command
             .spawn()
             .with_context(|| format!("Failed to spawn command: {:?}", self.path))?;
@@ -89,17 +67,6 @@ pub struct StudyRunnerOpt {
     pub runs: Option<usize>,
     pub command: CommandRunnerOpt,
     pub output: Option<PathBuf>,
-    pub log_dir: Option<PathBuf>,
-}
-
-impl StudyRunnerOpt {
-    fn log_root_dir(&self) -> Option<PathBuf> {
-        // TODO: escape study_name
-        self.log_dir.as_ref().map(|root| {
-            root.join(&self.study_name)
-                .join(&self.study_instance.to_string())
-        })
-    }
 }
 
 #[derive(Debug)]
@@ -147,11 +114,8 @@ impl<W: Write> StudyRunner<W> {
             trial_id: obs.trial_id,
             elapsed: self.start_time.elapsed(),
         }))?;
-        self.runnings.push(
-            self.opt
-                .command
-                .spawn(obs.id, self.rpc_server_addr, &self.opt)?,
-        );
+        self.runnings
+            .push(self.opt.command.spawn(obs.id, self.rpc_server_addr)?);
         self.observations.insert(obs.id, obs);
         Ok(())
     }
@@ -185,17 +149,7 @@ impl<W: Write> StudyRunner<W> {
         Ok(())
     }
 
-    fn init_log_dir(&mut self) -> anyhow::Result<()> {
-        if let Some(root) = self.opt.log_root_dir() {
-            std::fs::create_dir_all(&root)?;
-            self.output.add_file(root.join("events.json"))?;
-        }
-        Ok(())
-    }
-
     pub fn run(mut self) -> anyhow::Result<()> {
-        self.init_log_dir()?;
-
         self.output.write(Event::Study(StudyEvent::Defined {
             opt: self.opt.clone(),
         }))?;
