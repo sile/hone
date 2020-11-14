@@ -20,11 +20,11 @@ pub enum EventOrLine {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StudyEvent {
+    Started, // TODO: resume_info
     Defined {
         #[serde(flatten)]
         opt: StudyRunnerOpt,
     },
-    Started, // TODO: resume_info
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

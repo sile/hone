@@ -1,11 +1,10 @@
 use crate::envvar;
 use crate::event::{Event, EventReader, EventWriter, ObservationEvent, StudyEvent, TrialEvent};
 use crate::metric::MetricInstance;
-use crate::optimizer::Action;
-use crate::optimizer::{Optimize, Optimizer};
 use crate::param::{ParamInstance, ParamValue};
 use crate::rpc;
 use crate::trial::{Observation, ObservationId, TrialId};
+use crate::tuners::{Action, Optimize, Tuner};
 use crate::types::Scope;
 use anyhow::Context;
 use std::collections::{BTreeMap, HashMap};
@@ -79,7 +78,7 @@ pub struct StudyRunner<W> {
     next_trial_id: TrialId,
     rpc_server_addr: std::net::SocketAddr,
     rpc_channel: rpc::Channel,
-    optimizer: Optimizer,
+    tuner: Tuner,
     opt: StudyRunnerOpt,
     start_time: Instant,
     study_temp_dir: Option<tempfile::TempDir>,
@@ -88,7 +87,7 @@ pub struct StudyRunner<W> {
 }
 
 impl<W: Write> StudyRunner<W> {
-    pub fn new(output: W, optimizer: Optimizer, opt: StudyRunnerOpt) -> anyhow::Result<Self> {
+    pub fn new(output: W, tuner: Tuner, opt: StudyRunnerOpt) -> anyhow::Result<Self> {
         let (rpc_server_addr, rpc_channel) = rpc::spawn_rpc_server()?;
         Ok(Self {
             output: EventWriter::new(output),
@@ -99,7 +98,7 @@ impl<W: Write> StudyRunner<W> {
             rpc_channel,
             next_obs_id: ObservationId::new(0),
             next_trial_id: TrialId::new(0),
-            optimizer,
+            tuner,
             opt,
             start_time: Instant::now(),
             study_temp_dir: None,
@@ -140,7 +139,7 @@ impl<W: Write> StudyRunner<W> {
                         self.next_obs_id = ObservationId::new(obs_id.get() + 1);
                     }
                     ObservationEvent::Finished { obs, .. } => {
-                        self.optimizer.tell(&obs)?;
+                        self.tuner.tell(&obs)?;
                     }
                 },
             }
@@ -150,10 +149,10 @@ impl<W: Write> StudyRunner<W> {
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
+        self.output.write(Event::Study(StudyEvent::Started))?;
         self.output.write(Event::Study(StudyEvent::Defined {
             opt: self.opt.clone(),
         }))?;
-        self.output.write(Event::Study(StudyEvent::Started))?;
         if let Some(path) = self.opt.resume.clone() {
             self.resume_study(path)?;
         }
@@ -164,7 +163,7 @@ impl<W: Write> StudyRunner<W> {
             did_nothing = true;
 
             while self.runnings.len() < self.opt.workers.get() {
-                match self.optimizer.next_action()? {
+                match self.tuner.next_action()? {
                     Action::CreateTrial => {
                         let obs = Observation::new(
                             self.next_obs_id.fetch_and_increment(),
@@ -217,7 +216,7 @@ impl<W: Write> StudyRunner<W> {
                         .remove(&finished.observation_id)
                         .expect("bug");
                     obs.exit_status = status.code();
-                    let trial_finished = self.optimizer.tell(&obs)?;
+                    let trial_finished = self.tuner.tell(&obs)?;
 
                     let obs_id = obs.id;
                     let trial_id = obs.trial_id;
@@ -335,7 +334,7 @@ impl<W: Write> StudyRunner<W> {
                 anyhow::anyhow!("unknown observation_id {}", req.observation_id.get())
             })?;
         // TODO: check whether the parameter has already been asked.
-        let value = self.optimizer.ask(obs, &req.param_name, &req.param_type)?;
+        let value = self.tuner.ask(obs, &req.param_name, &req.param_type)?;
         obs.params.insert(
             req.param_name,
             ParamInstance::new(req.param_type, value.clone()),

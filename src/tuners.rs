@@ -31,30 +31,30 @@ pub enum Action {
 #[derive(Debug, Clone, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
 #[structopt(rename_all = "kebab-case")]
 #[serde(rename_all = "snake_case")]
-pub enum OptimizerSpec {
-    Random(self::random::RandomOptimizerSpec),
+pub enum TunerSpec {
+    Random(self::random::RandomTunerSpec),
 }
 
-impl OptimizerSpec {
-    pub fn build(&self) -> anyhow::Result<Optimizer> {
+impl TunerSpec {
+    pub fn build(&self) -> anyhow::Result<Tuner> {
         match self {
-            Self::Random(spec) => spec.build().map(Optimizer::Random),
+            Self::Random(spec) => spec.build().map(Tuner::Random),
         }
     }
 }
 
-impl Default for OptimizerSpec {
+impl Default for TunerSpec {
     fn default() -> Self {
-        Self::Random(self::random::RandomOptimizerSpec::default())
+        Self::Random(self::random::RandomTunerSpec::default())
     }
 }
 
 #[derive(Debug)]
-pub enum Optimizer {
-    Random(self::random::RandomOptimizer),
+pub enum Tuner {
+    Random(self::random::RandomTuner),
 }
 
-impl Optimize for Optimizer {
+impl Optimize for Tuner {
     fn ask(
         &mut self,
         obs: &Observation,

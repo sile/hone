@@ -1,6 +1,6 @@
 use crate::attr::Attr;
-use crate::optimizer::OptimizerSpec;
 use crate::runner::{CommandRunnerOpt, StudyRunner, StudyRunnerOpt};
+use crate::tuners::TunerSpec;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -15,7 +15,7 @@ pub struct RunOpt {
     pub repeat: Option<usize>,
 
     #[structopt(long, parse(try_from_str = crate::json::parse_json))]
-    pub optim: Option<OptimizerSpec>,
+    pub tuner: Option<TunerSpec>,
 
     #[structopt(long = "name")]
     pub study_name: Option<String>,
@@ -51,18 +51,18 @@ impl RunOpt {
                 args: self.args.clone(),
             },
         };
-        let optimizer = self.optim.clone().unwrap_or_default().build()?;
+        let tuner = self.tuner.clone().unwrap_or_default().build()?;
 
         if let Some(path) = self.output {
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir)?;
             }
             let file = std::fs::File::create(path)?;
-            let runner = StudyRunner::new(file, optimizer, opt)?;
+            let runner = StudyRunner::new(file, tuner, opt)?;
             runner.run()
         } else {
             let stdout = std::io::stdout();
-            let runner = StudyRunner::new(stdout.lock(), optimizer, opt)?;
+            let runner = StudyRunner::new(stdout.lock(), tuner, opt)?;
             runner.run()
         }
     }

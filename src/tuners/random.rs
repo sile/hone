@@ -1,41 +1,41 @@
-use crate::optimizer::Optimize;
 use crate::param::{NumParamType, ParamName, ParamType, ParamValue, StrParamType};
 use crate::rng::ArcRng;
 use crate::trial::{Observation, TrialId};
+use crate::tuners::Optimize;
 use crate::types::FiniteF64;
 use rand::distributions::Distribution;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
 #[derive(Debug, Clone, Default, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
-pub struct RandomOptimizerSpec {
+pub struct RandomTunerSpec {
     #[structopt(long)]
     pub seed: Option<u64>,
 }
 
-impl RandomOptimizerSpec {
-    pub fn build(&self) -> anyhow::Result<RandomOptimizer> {
+impl RandomTunerSpec {
+    pub fn build(&self) -> anyhow::Result<RandomTuner> {
         let rng = ArcRng::new(self.seed);
-        Ok(RandomOptimizer::new(rng))
+        Ok(RandomTuner::new(rng))
     }
 }
 
 #[derive(Debug)]
-pub struct RandomOptimizer {
+pub struct RandomTuner {
     rng: ArcRng,
     finished_trials: Vec<TrialId>,
 }
 
-impl RandomOptimizer {
+impl RandomTuner {
     pub fn new(rng: ArcRng) -> Self {
-        RandomOptimizer {
+        RandomTuner {
             rng,
             finished_trials: Vec::new(),
         }
     }
 }
 
-impl Optimize for RandomOptimizer {
+impl Optimize for RandomTuner {
     fn ask(
         &mut self,
         _obs: &Observation,

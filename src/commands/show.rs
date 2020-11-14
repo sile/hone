@@ -14,6 +14,7 @@ pub enum ShowOpt {
 #[derive(Debug, structopt::StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct BestOpt {
+    // TODO: --unknown-lines=ignore|passthrough
     #[structopt(long, short = "p")]
     pub passthrough_unknown_lines: bool,
 }
@@ -48,6 +49,7 @@ impl ShowOpt {
             Ok(())
         }
 
+        let mut skip = true;
         while let Some(event) = reader.read_event_or_line()? {
             match event {
                 EventOrLine::Event(Event::Study(StudyEvent::Defined { opt })) => {
@@ -56,9 +58,15 @@ impl ShowOpt {
                     }
                     current_study = Some(opt);
                     best = BTreeMap::new();
+                    skip = false;
                 }
-                EventOrLine::Event(Event::Study(StudyEvent::Started)) => {}
+                EventOrLine::Event(Event::Study(StudyEvent::Started)) => {
+                    skip = true;
+                }
                 EventOrLine::Event(Event::Obs(ObservationEvent::Finished { obs, .. })) => {
+                    if skip {
+                        continue;
+                    }
                     for (name, metric) in &obs.metrics {
                         if metric.ty.objective.is_none() {
                             continue;
