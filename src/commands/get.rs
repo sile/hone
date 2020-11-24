@@ -24,7 +24,7 @@ impl GetOpt {
             Self::Id { scope } => match scope {
                 Scope::Observation => envvar::get_string(envvar::KEY_OBSERVATION_ID)?,
                 Scope::Trial => envvar::get_string(envvar::KEY_TRIAL_ID)?,
-                Scope::Study => envvar::get_string(envvar::KEY_STUDY_INSTNACE_ID)?,
+                Scope::Study => envvar::get_string(envvar::KEY_STUDY_ID)?,
             },
             Self::Tempdir { scope, parent } => {
                 let observation_id = envvar::get_observation_id()?;

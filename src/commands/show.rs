@@ -68,9 +68,12 @@ impl ShowOpt {
                         continue;
                     }
                     for (name, metric) in &obs.metrics {
-                        if metric.ty.objective.is_none() {
-                            continue;
-                        }
+                        // TODO: consider fidelity
+
+                        // TODO
+                        // if metric.ty.objective.is_none() {
+                        //     continue;
+                        // }
                         let current = best
                             .entry(name.get().to_owned())
                             .or_insert_with(|| obs.to_compact());

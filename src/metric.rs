@@ -27,16 +27,13 @@ impl MetricValue {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MetricType {
-    pub objective: Option<Objective>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum Objective {
+pub enum MetricType {
     Minimize,
     Maximize,
+    Record,
+    Judge,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,10 +48,11 @@ impl MetricInstance {
     }
 
     pub fn is_better_than(&self, other: MetricValue) -> bool {
-        match self.ty.objective {
-            None => false,
-            Some(Objective::Minimize) => self.value < other,
-            Some(Objective::Maximize) => self.value > other,
+        match self.ty {
+            MetricType::Minimize => self.value < other,
+            MetricType::Maximize => self.value > other,
+            MetricType::Record => false,
+            MetricType::Judge => false,
         }
     }
 }

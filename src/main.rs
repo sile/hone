@@ -4,12 +4,11 @@ use structopt::StructOpt;
 #[structopt(rename_all = "kebab-case")]
 enum Opt {
     Ask(hone::commands::ask::AskOpt),
-    Tell(hone::commands::tell::TellOpt),
-    Run(hone::commands::run::RunOpt),
-    Tuner(hone::commands::tuner::TunerOpt),
     Get(hone::commands::get::GetOpt),
+    Run(hone::commands::run::RunOpt),
     Show(hone::commands::show::ShowOpt),
-    // TODO: Plot, Watch, Import, Export
+    Tell(hone::commands::tell::TellOpt),
+    Tuner(hone::commands::tuner::TunerOpt),
 }
 
 fn main() -> anyhow::Result<()> {
