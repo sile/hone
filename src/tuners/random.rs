@@ -77,16 +77,11 @@ impl Tune for RandomTuner {
     }
 
     fn tell(&mut self, obs: &Observation) -> anyhow::Result<()> {
-        self.actions.push_back(Action::FinishTrial {
-            trial_id: obs.trial_id,
-        });
+        self.actions.enqueue(Action::finish_trial(obs.trial_id));
         Ok(())
     }
 
     fn next_action(&mut self) -> anyhow::Result<Action> {
-        Ok(self
-            .actions
-            .pop_front()
-            .unwrap_or_else(|| Action::CreateTrial))
+        Ok(self.actions.next())
     }
 }

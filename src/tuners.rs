@@ -26,12 +26,34 @@ pub enum Action {
     QuitOptimization,
 }
 
-pub type ActionQueue = VecDeque<Action>;
+impl Action {
+    pub const fn finish_trial(trial_id: TrialId) -> Self {
+        Self::FinishTrial { trial_id }
+    }
+}
+
+#[derive(Debug)]
+pub struct ActionQueue(VecDeque<Action>);
+
+impl ActionQueue {
+    pub fn new() -> Self {
+        Self(VecDeque::new())
+    }
+
+    pub fn enqueue(&mut self, action: Action) {
+        self.0.push_back(action);
+    }
+
+    pub fn next(&mut self) -> Action {
+        self.0.pop_front().unwrap_or_else(|| Action::CreateTrial)
+    }
+}
 
 #[derive(Debug, Clone, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
 #[structopt(rename_all = "kebab-case")]
 #[serde(rename_all = "snake_case")]
 pub enum TunerSpec {
+    // TODO: RetryTuner, AverageTuner, HyperbandTuner, TpeTuner
     Random(self::random::RandomTunerSpec),
 }
 

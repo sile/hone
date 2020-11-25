@@ -4,7 +4,7 @@ use crate::runner::{StudyRunner, StudyRunnerOpt};
 use crate::study::{CommandSpec, StudySpec};
 use crate::tuners::TunerSpec;
 use anyhow::Context;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufReader, Write};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -26,9 +26,6 @@ pub struct RunOpt {
 
     #[structopt(long)]
     pub load: Vec<PathBuf>,
-
-    #[structopt(long)]
-    pub save: Option<PathBuf>,
 
     #[structopt(long, parse(try_from_str = crate::json::parse_json))]
     pub tuner: Option<TunerSpec>,
@@ -64,18 +61,9 @@ impl RunOpt {
             repeat: self.repeat,
         };
 
-        if let Some(path) = &self.save {
-            if let Some(dir) = path.parent() {
-                std::fs::create_dir_all(dir)?;
-            }
-            let file = std::fs::File::create(path)?;
-            let runner = StudyRunner::new(BufWriter::new(file), opt)?;
-            self.load_then_run(runner)
-        } else {
-            let stdout = std::io::stdout();
-            let runner = StudyRunner::new(stdout.lock(), opt)?;
-            self.load_then_run(runner)
-        }
+        let stdout = std::io::stdout();
+        let runner = StudyRunner::new(stdout.lock(), opt)?;
+        self.load_then_run(runner)
     }
 
     fn load_then_run<W: Write>(&self, mut runner: StudyRunner<W>) -> anyhow::Result<()> {
