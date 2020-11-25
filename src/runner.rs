@@ -1,4 +1,5 @@
 use self::command::CommandRunner;
+use self::tempdir::TempDirs;
 use crate::event::{Event, EventReader, EventWriter};
 use crate::metric::MetricInstance;
 use crate::param::{ParamInstance, ParamValue};
@@ -15,6 +16,7 @@ use std::time::{Duration, Instant};
 
 mod command;
 mod loader;
+mod tempdir;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StudyRunnerOpt {
@@ -36,9 +38,7 @@ pub struct StudyRunner<W> {
     tuner: Tuner,
     opt: StudyRunnerOpt,
     start_time: Instant,
-    study_temp_dir: Option<tempfile::TempDir>,
-    trial_temp_dirs: HashMap<TrialId, tempfile::TempDir>,
-    obs_temp_dirs: HashMap<ObservationId, tempfile::TempDir>,
+    tempdirs: TempDirs,
     elapsed_offset: Duration,
 }
 
@@ -63,14 +63,12 @@ impl<W: Write> StudyRunner<W> {
             tuner,
             opt,
             start_time: Instant::now(),
-            study_temp_dir: None,
-            trial_temp_dirs: HashMap::new(),
-            obs_temp_dirs: HashMap::new(),
+            tempdirs: TempDirs::new(),
             elapsed_offset: Duration::new(0, 0),
         })
     }
 
-    fn start_observation(&mut self, obs: Observation) -> anyhow::Result<()> {
+    fn start_obs(&mut self, obs: Observation) -> anyhow::Result<()> {
         self.output.write(Event::observation_started(
             obs.id,
             obs.trial_id,
@@ -82,6 +80,20 @@ impl<W: Write> StudyRunner<W> {
             self.rpc_server_addr,
         )?);
         self.observations.insert(obs.id, obs);
+        Ok(())
+    }
+
+    fn finish_obs(&mut self, obs: Observation, elapsed: Duration) -> anyhow::Result<()> {
+        let elapsed = self.elapsed_offset + elapsed;
+        self.tempdirs.remove_obs_tempdir(obs.id);
+        self.output
+            .write(Event::observation_finished(obs, elapsed))?;
+        Ok(())
+    }
+
+    fn finish_trial(&mut self, trial_id: TrialId) -> anyhow::Result<()> {
+        self.tempdirs.remove_trial_tempdir(trial_id);
+        self.output.write(Event::trial_finished(trial_id))?;
         Ok(())
     }
 
@@ -105,20 +117,19 @@ impl<W: Write> StudyRunner<W> {
                             self.next_trial_id.fetch_and_increment(),
                         );
                         self.output.write(Event::trial_started(obs.trial_id))?;
-                        self.start_observation(obs)?;
+                        self.start_obs(obs)?;
                         did_nothing = false;
                         break;
                     }
                     Action::ResumeTrial { trial_id } => {
                         let obs =
                             Observation::new(self.next_obs_id.fetch_and_increment(), trial_id);
-                        self.start_observation(obs)?;
+                        self.start_obs(obs)?;
                         did_nothing = false;
                         break;
                     }
                     Action::FinishTrial { trial_id } => {
-                        self.output.write(Event::trial_finished(trial_id))?;
-                        self.trial_temp_dirs.remove(&trial_id);
+                        self.finish_trial(trial_id)?;
                     }
                     Action::WaitObservations => {
                         break;
@@ -157,15 +168,11 @@ impl<W: Write> StudyRunner<W> {
     }
 
     fn tell_finished_obs(&mut self, obs: Observation, elapsed: Duration) -> anyhow::Result<()> {
-        let elapsed = self.elapsed_offset + elapsed;
         let trial_id = obs.trial_id;
         let trial_finished = self.tuner.tell(&obs)?;
-        self.obs_temp_dirs.remove(&obs.id);
-        self.output
-            .write(Event::observation_finished(obs, elapsed))?;
+        self.finish_obs(obs, elapsed)?;
         if trial_finished {
-            self.trial_temp_dirs.remove(&trial_id);
-            self.output.write(Event::trial_finished(trial_id))?;
+            self.finish_trial(trial_id)?;
         }
         Ok(())
     }
@@ -194,47 +201,10 @@ impl<W: Write> StudyRunner<W> {
         Ok(())
     }
 
-    fn ensure_temp_dir_created(
-        tempdir: Option<&tempfile::TempDir>,
-        parent: Option<&PathBuf>,
-    ) -> anyhow::Result<(Option<tempfile::TempDir>, PathBuf)> {
-        if let Some(temp) = tempdir {
-            Ok((None, temp.path().to_path_buf()))
-        } else if let Some(parent) = parent {
-            std::fs::create_dir_all(parent)?;
-            let temp = tempfile::TempDir::new_in(parent)?;
-            let path = temp.path().to_path_buf();
-            Ok((Some(temp), path))
-        } else {
-            let temp = tempfile::TempDir::new()?;
-            let path = temp.path().to_path_buf();
-            Ok((Some(temp), path))
-        }
-    }
-
     fn handle_mktemp(&mut self, req: rpc::MktempReq) -> anyhow::Result<PathBuf> {
         match req.scope {
-            Scope::Study => {
-                let (temp, path) = Self::ensure_temp_dir_created(
-                    self.study_temp_dir.as_ref(),
-                    req.parent.as_ref(),
-                )?;
-                if let Some(temp) = temp {
-                    self.study_temp_dir = Some(temp)
-                }
-                Ok(path)
-            }
-            Scope::Observation => {
-                let (temp, path) = Self::ensure_temp_dir_created(
-                    self.obs_temp_dirs.get(&req.observation_id),
-                    req.parent.as_ref(),
-                )?;
-                if let Some(temp) = temp {
-                    self.obs_temp_dirs.insert(req.observation_id, temp);
-                }
-                Ok(path)
-            }
-            _ => {
+            Scope::Study => self.tempdirs.create_study_tempdir(req.parent.as_ref()),
+            Scope::Trial => {
                 let trial_id = self
                     .observations
                     .get(&req.observation_id)
@@ -242,15 +212,12 @@ impl<W: Write> StudyRunner<W> {
                         anyhow::anyhow!("unknown observation: {:?}", req.observation_id)
                     })?
                     .trial_id;
-                let (temp, path) = Self::ensure_temp_dir_created(
-                    self.trial_temp_dirs.get(&trial_id),
-                    req.parent.as_ref(),
-                )?;
-                if let Some(temp) = temp {
-                    self.trial_temp_dirs.insert(trial_id, temp);
-                }
-                Ok(path)
+                self.tempdirs
+                    .create_trial_tempdir(trial_id, req.parent.as_ref())
             }
+            Scope::Observation => self
+                .tempdirs
+                .create_obs_tempdir(req.observation_id, req.parent.as_ref()),
         }
     }
 
