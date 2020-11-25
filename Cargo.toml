@@ -18,6 +18,7 @@ fibers = "0.1"
 fibers_global = "0.1"
 fibers_rpc = "0.3"
 futures = "0.1"
+libc = "0.2"
 ordered-float = { version = "2", features = ["serde"] }
 rand = "0.7"
 rand_distr = "0.3"

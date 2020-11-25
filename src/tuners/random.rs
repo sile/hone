@@ -1,7 +1,7 @@
 use crate::param::{NumParamType, ParamName, ParamType, ParamValue, StrParamType};
-use crate::rng::ArcRng;
-use crate::trial::{Observation, TrialId};
-use crate::tuners::Tune;
+use crate::rng::{ArcRng, RngSeed};
+use crate::trial::Observation;
+use crate::tuners::{Action, ActionQueue, Tune};
 use crate::types::FiniteF64;
 use rand::distributions::Distribution;
 use rand::seq::SliceRandom;
@@ -10,12 +10,12 @@ use rand::Rng;
 #[derive(Debug, Clone, Default, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
 pub struct RandomTunerSpec {
     #[structopt(long)]
-    pub seed: Option<u64>,
+    pub seed: Option<RngSeed>,
 }
 
 impl RandomTunerSpec {
     pub fn build(&self) -> anyhow::Result<RandomTuner> {
-        let rng = ArcRng::new(self.seed);
+        let rng = ArcRng::new(self.seed.unwrap_or_default());
         Ok(RandomTuner::new(rng))
     }
 }
@@ -23,14 +23,14 @@ impl RandomTunerSpec {
 #[derive(Debug)]
 pub struct RandomTuner {
     rng: ArcRng,
-    finished_trials: Vec<TrialId>,
+    actions: ActionQueue,
 }
 
 impl RandomTuner {
     pub fn new(rng: ArcRng) -> Self {
         RandomTuner {
             rng,
-            finished_trials: Vec::new(),
+            actions: ActionQueue::new(),
         }
     }
 }
@@ -76,8 +76,17 @@ impl Tune for RandomTuner {
         }
     }
 
-    fn tell(&mut self, obs: &Observation) -> anyhow::Result<bool> {
-        self.finished_trials.push(obs.trial_id);
-        Ok(true)
+    fn tell(&mut self, obs: &Observation) -> anyhow::Result<()> {
+        self.actions.push_back(Action::FinishTrial {
+            trial_id: obs.trial_id,
+        });
+        Ok(())
+    }
+
+    fn next_action(&mut self) -> anyhow::Result<Action> {
+        Ok(self
+            .actions
+            .pop_front()
+            .unwrap_or_else(|| Action::CreateTrial))
     }
 }

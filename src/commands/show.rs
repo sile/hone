@@ -1,7 +1,6 @@
-use crate::event::{Event, EventOrLine, EventReader, ObservationEvent, StudyEvent};
+use crate::event::{Event, EventReader, ObservationEvent, StudyEvent};
 use crate::study::StudySpec;
 use crate::trial::CompactObservation;
-use anyhow::Context;
 use std::collections::BTreeMap;
 
 #[derive(Debug, structopt::StructOpt)]
@@ -13,11 +12,7 @@ pub enum ShowOpt {
 
 #[derive(Debug, structopt::StructOpt)]
 #[structopt(rename_all = "kebab-case")]
-pub struct BestOpt {
-    // TODO: --unknown-lines=ignore|passthrough
-    #[structopt(long, short = "p")]
-    pub passthrough_unknown_lines: bool,
-}
+pub struct BestOpt {}
 
 impl ShowOpt {
     pub fn show(&self) -> anyhow::Result<()> {
@@ -27,7 +22,7 @@ impl ShowOpt {
         Ok(())
     }
 
-    fn show_best(&self, opt: &BestOpt) -> anyhow::Result<()> {
+    fn show_best(&self, _opt: &BestOpt) -> anyhow::Result<()> {
         let stdin = std::io::stdin();
         let mut reader = EventReader::new(stdin.lock());
         let mut current_study = None;
@@ -50,9 +45,9 @@ impl ShowOpt {
         }
 
         let mut skip = true;
-        while let Some(event) = reader.read_event_or_line()? {
+        while let Some(event) = reader.read()? {
             match event {
-                EventOrLine::Event(Event::Study(StudyEvent::Defined { spec })) => {
+                Event::Study(StudyEvent::Defined { spec }) => {
                     if let Some(study) = current_study.take() {
                         output(&study, &best)?;
                     }
@@ -60,12 +55,10 @@ impl ShowOpt {
                     best = BTreeMap::new();
                     skip = false;
                 }
-                EventOrLine::Event(Event::Study(StudyEvent::Started)) => {
+                Event::Study(StudyEvent::Started) => {
                     skip = true;
                 }
-                EventOrLine::Event(Event::Observation(ObservationEvent::Finished {
-                    obs, ..
-                })) => {
+                Event::Observation(ObservationEvent::Finished { obs, .. }) => {
                     if skip {
                         continue;
                     }
@@ -82,14 +75,6 @@ impl ShowOpt {
                         if metric.is_better_than(current.metrics[name]) {
                             *current = obs.to_compact()
                         }
-                    }
-                }
-                EventOrLine::Line(line, err) => {
-                    if opt.passthrough_unknown_lines {
-                        println!("{}", line);
-                    } else {
-                        return Err(err)
-                            .with_context(|| format!("Expected a JSON object, got {:?}", line));
                     }
                 }
                 _ => {}

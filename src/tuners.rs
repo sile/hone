@@ -1,5 +1,6 @@
 use crate::param::{ParamName, ParamType, ParamValue};
 use crate::trial::{Observation, TrialId};
+use std::collections::VecDeque;
 
 pub mod random;
 
@@ -11,11 +12,9 @@ pub trait Tune {
         param_type: &ParamType,
     ) -> anyhow::Result<ParamValue>;
 
-    fn tell(&mut self, obs: &Observation) -> anyhow::Result<bool>;
+    fn tell(&mut self, obs: &Observation) -> anyhow::Result<()>;
 
-    fn next_action(&mut self) -> anyhow::Result<Action> {
-        Ok(Action::CreateTrial)
-    }
+    fn next_action(&mut self) -> anyhow::Result<Action>;
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +25,8 @@ pub enum Action {
     WaitObservations,
     QuitOptimization,
 }
+
+pub type ActionQueue = VecDeque<Action>;
 
 #[derive(Debug, Clone, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
 #[structopt(rename_all = "kebab-case")]
@@ -65,7 +66,7 @@ impl Tune for Tuner {
         }
     }
 
-    fn tell(&mut self, obs: &Observation) -> anyhow::Result<bool> {
+    fn tell(&mut self, obs: &Observation) -> anyhow::Result<()> {
         match self {
             Self::Random(o) => o.tell(obs),
         }

@@ -2,6 +2,7 @@ use crate::envvar;
 use crate::study::StudySpec;
 use crate::trial::Observation;
 use anyhow::Context;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::process::{Child, Command, Stdio};
 
 #[derive(Debug)]
@@ -17,12 +18,21 @@ impl CommandRunner {
         rpc_server_addr: std::net::SocketAddr,
     ) -> anyhow::Result<Self> {
         let mut command = Command::new(&study.command.path);
+
+        let stdout = unsafe {
+            let fd = libc::dup(std::io::stderr().as_raw_fd());
+            if fd == -1 {
+                Err(std::io::Error::last_os_error())?;
+            }
+            Stdio::from_raw_fd(fd)
+        };
         command
             .args(&study.command.args)
             .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
             .env(envvar::KEY_STUDY_ID, study.id.to_string())
             .env(envvar::KEY_TRIAL_ID, obs.trial_id.get().to_string())
             .env(envvar::KEY_OBSERVATION_ID, obs.id.get().to_string())
+            .stdout(stdout)
             .stdin(Stdio::null());
         let proc = command
             .spawn()

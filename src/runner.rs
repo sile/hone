@@ -113,12 +113,8 @@ impl<W: Write> StudyRunner<W> {
     }
 
     fn tell_finished_obs(&mut self, obs: Observation, elapsed: Duration) -> anyhow::Result<()> {
-        let trial_id = obs.trial_id;
-        let trial_finished = self.tuner.tell(&obs)?;
+        self.tuner.tell(&obs)?;
         self.finish_obs(obs, elapsed)?;
-        if trial_finished {
-            self.finish_trial(trial_id)?;
-        }
         Ok(())
     }
 

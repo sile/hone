@@ -314,6 +314,7 @@ dependencies = [
  "fibers_global",
  "fibers_rpc",
  "futures",
+ "libc",
  "ordered-float",
  "rand",
  "rand_distr 0.3.0",
