@@ -1,19 +1,19 @@
 use crate::envvar;
 use crate::study::StudySpec;
-use crate::trial::{Observation, ObservationId};
+use crate::trial::Observation;
 use anyhow::Context;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, Command, Stdio};
 
 #[derive(Debug)]
 pub struct CommandRunner {
-    obs_id: ObservationId,
+    obs: Observation,
     proc: Child,
 }
 
 impl CommandRunner {
     pub fn spawn(
         study: &StudySpec,
-        obs: &Observation,
+        obs: Observation,
         rpc_server_addr: std::net::SocketAddr,
     ) -> anyhow::Result<Self> {
         let mut command = Command::new(&study.command.path);
@@ -27,18 +27,32 @@ impl CommandRunner {
         let proc = command
             .spawn()
             .with_context(|| format!("Failed to spawn command: {:?}", study.command.path))?;
-        Ok(CommandRunner {
-            obs_id: obs.id,
-            proc,
-        })
+        Ok(CommandRunner { obs, proc })
     }
 
-    pub const fn obs_id(&self) -> ObservationId {
-        self.obs_id
+    pub fn obs(&self) -> &Observation {
+        &self.obs
     }
 
-    pub fn try_wait(&mut self) -> anyhow::Result<Option<ExitStatus>> {
-        let exit_status = self.proc.try_wait()?;
-        Ok(exit_status)
+    pub fn obs_mut(&mut self) -> &mut Observation {
+        &mut self.obs
+    }
+
+    pub fn into_obs(self) -> Observation {
+        self.obs
+    }
+
+    pub fn is_exited(&mut self) -> anyhow::Result<bool> {
+        if let Some(exit_status) = self.proc.try_wait()? {
+            self.obs.exit_status = exit_status.code();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn kill(&mut self) -> anyhow::Result<()> {
+        self.proc.kill()?;
+        Ok(())
     }
 }

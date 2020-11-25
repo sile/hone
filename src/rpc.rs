@@ -119,6 +119,7 @@ pub enum Message {
 #[derive(Debug)]
 pub struct Channel {
     rx: fibers::sync::mpsc::Receiver<Message>,
+    pub server_addr: SocketAddr, // TODO: private
 }
 
 impl Channel {
@@ -173,14 +174,8 @@ impl fibers_rpc::server::HandleCall<MktempRpc> for MktempHandler {
 }
 
 // TODO:
-pub fn spawn_rpc_server() -> anyhow::Result<(SocketAddr, Channel)> {
-    // // TODO: for debug
-    // use slog::Drain as _;
-    // let plain = slog_term::PlainSyncDecorator::new(std::io::stderr());
-    // let logger = slog::Logger::root(slog_term::FullFormat::new(plain).build().fuse(), slog::o!());
-
+pub fn spawn_rpc_server() -> anyhow::Result<Channel> {
     let mut builder = ServerBuilder::new(SocketAddr::from(([127, 0, 0, 1], 0)));
-    // builder.logger(logger);
     let (tx, rx) = fibers::sync::mpsc::channel();
     builder.add_call_handler(AskHandler { tx: tx.clone() });
     builder.add_call_handler(TellHandler { tx: tx.clone() });
@@ -189,5 +184,8 @@ pub fn spawn_rpc_server() -> anyhow::Result<(SocketAddr, Channel)> {
     let (server, addr) = fibers_global::execute(server.local_addr())?;
     fibers_global::spawn(server.map_err(|e| panic!("{}", e)));
 
-    Ok((addr, Channel { rx }))
+    Ok(Channel {
+        rx,
+        server_addr: addr,
+    })
 }
