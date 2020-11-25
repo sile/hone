@@ -3,44 +3,37 @@ use crate::event::{Event, EventReader, EventWriter, ObservationEvent, StudyEvent
 use crate::metric::MetricInstance;
 use crate::param::{ParamInstance, ParamValue};
 use crate::rpc;
+use crate::study::{CommandSpec, StudySpec};
 use crate::trial::{Observation, ObservationId, TrialId};
-use crate::tuners::{Action, Optimize, Tuner};
+use crate::tuners::{Action, Tune, Tuner};
 use crate::types::Scope;
 use anyhow::Context;
-use std::collections::{BTreeMap, HashMap};
-use std::io::Write;
+use std::collections::HashMap;
+use std::io::{BufRead, Write};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct CommandRunnerOpt {
-    pub path: String,
-    pub args: Vec<String>,
-}
-
-impl CommandRunnerOpt {
-    pub fn spawn(
-        &self,
-        observation_id: ObservationId,
-        rpc_server_addr: std::net::SocketAddr,
-    ) -> anyhow::Result<CommandRunner> {
-        let mut command = Command::new(&self.path);
-        // TODO: trial_id and study_instance_id envs
-        command
-            .args(&self.args)
-            .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
-            .env(envvar::KEY_OBSERVATION_ID, observation_id.get().to_string())
-            .stdin(Stdio::null());
-        let proc = command
-            .spawn()
-            .with_context(|| format!("Failed to spawn command: {:?}", self.path))?;
-        Ok(CommandRunner {
-            observation_id,
-            proc,
-        })
-    }
+pub fn spawn(
+    spec: &CommandSpec,
+    observation_id: ObservationId,
+    rpc_server_addr: std::net::SocketAddr,
+) -> anyhow::Result<CommandRunner> {
+    let mut command = Command::new(&spec.path);
+    // TODO: trial_id and study_instance_id envs
+    command
+        .args(&spec.args)
+        .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
+        .env(envvar::KEY_OBSERVATION_ID, observation_id.get().to_string())
+        .stdin(Stdio::null());
+    let proc = command
+        .spawn()
+        .with_context(|| format!("Failed to spawn command: {:?}", spec.path))?;
+    Ok(CommandRunner {
+        observation_id,
+        proc,
+    })
 }
 
 #[derive(Debug)]
@@ -58,14 +51,9 @@ impl CommandRunner {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StudyRunnerOpt {
-    pub study_name: String,
-    pub study_instance: uuid::Uuid,
-    pub resume: Option<PathBuf>,
-    pub attrs: BTreeMap<String, String>,
+    pub study: StudySpec,
     pub workers: NonZeroUsize,
-    pub runs: Option<usize>,
-    pub command: CommandRunnerOpt,
-    pub output: Option<PathBuf>,
+    pub repeat: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -84,13 +72,22 @@ pub struct StudyRunner<W> {
     study_temp_dir: Option<tempfile::TempDir>,
     trial_temp_dirs: HashMap<TrialId, tempfile::TempDir>,
     obs_temp_dirs: HashMap<ObservationId, tempfile::TempDir>,
+    elapsed_offset: Duration,
 }
 
 impl<W: Write> StudyRunner<W> {
-    pub fn new(output: W, tuner: Tuner, opt: StudyRunnerOpt) -> anyhow::Result<Self> {
+    pub fn new(output: W, opt: StudyRunnerOpt) -> anyhow::Result<Self> {
+        let tuner = opt.study.tuner.build()?;
         let (rpc_server_addr, rpc_channel) = rpc::spawn_rpc_server()?;
+
+        let mut output = EventWriter::new(output);
+        output.write(Event::Study(StudyEvent::Started))?;
+        output.write(Event::Study(StudyEvent::Defined {
+            spec: opt.study.clone(),
+        }))?;
+
         Ok(Self {
-            output: EventWriter::new(output),
+            output,
             runnings: Vec::new(),
             observations: HashMap::new(),
             finished_observations: 0,
@@ -104,58 +101,32 @@ impl<W: Write> StudyRunner<W> {
             study_temp_dir: None,
             trial_temp_dirs: HashMap::new(),
             obs_temp_dirs: HashMap::new(),
+            elapsed_offset: Duration::new(0, 0),
         })
     }
 
     fn start_observation(&mut self, obs: Observation) -> anyhow::Result<()> {
-        self.output.write(Event::Obs(ObservationEvent::Started {
-            obs_id: obs.id,
-            trial_id: obs.trial_id,
-            elapsed: self.start_time.elapsed(),
-        }))?;
-        self.runnings
-            .push(self.opt.command.spawn(obs.id, self.rpc_server_addr)?);
+        self.output
+            .write(Event::Observation(ObservationEvent::Started {
+                obs_id: obs.id,
+                trial_id: obs.trial_id,
+                elapsed: self.start_time.elapsed(),
+            }))?;
+        self.runnings.push(spawn(
+            &self.opt.study.command,
+            obs.id,
+            self.rpc_server_addr,
+        )?);
         self.observations.insert(obs.id, obs);
         Ok(())
     }
 
-    fn resume_study(&mut self, path: PathBuf) -> anyhow::Result<()> {
-        let file =
-            std::fs::File::open(&path).with_context(|| format!("Cannot open file: {:?}", path))?;
-        let mut reader = EventReader::new(std::io::BufReader::new(file));
-        while let Some(event) = reader.read()? {
-            match &event {
-                Event::Study(_) => {
-                    continue;
-                }
-                Event::Trial(e) => match e {
-                    TrialEvent::Started { trial_id, .. } => {
-                        self.next_trial_id = TrialId::new(trial_id.get() + 1);
-                    }
-                    _ => {}
-                },
-                Event::Obs(e) => match e {
-                    ObservationEvent::Started { obs_id, .. } => {
-                        self.next_obs_id = ObservationId::new(obs_id.get() + 1);
-                    }
-                    ObservationEvent::Finished { obs, .. } => {
-                        self.tuner.tell(&obs)?;
-                    }
-                },
-            }
-            self.output.write(event)?;
-        }
-        Ok(())
+    pub fn load_study<R: BufRead>(&mut self, reader: EventReader<R>) -> anyhow::Result<()> {
+        let mut loader = StudyLoader::new(self);
+        loader.load(reader)
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
-        self.output.write(Event::Study(StudyEvent::Started))?;
-        self.output.write(Event::Study(StudyEvent::Defined {
-            opt: self.opt.clone(),
-        }))?;
-        if let Some(path) = self.opt.resume.clone() {
-            self.resume_study(path)?;
-        }
         self.start_time = Instant::now();
 
         let mut did_nothing;
@@ -171,7 +142,6 @@ impl<W: Write> StudyRunner<W> {
                         );
                         self.output.write(Event::Trial(TrialEvent::Started {
                             trial_id: obs.trial_id,
-                            elapsed: self.start_time.elapsed(),
                         }))?;
                         self.start_observation(obs)?;
                         did_nothing = false;
@@ -185,10 +155,8 @@ impl<W: Write> StudyRunner<W> {
                         break;
                     }
                     Action::FinishTrial { trial_id } => {
-                        self.output.write(Event::Trial(TrialEvent::Finished {
-                            trial_id,
-                            elapsed: self.start_time.elapsed(),
-                        }))?;
+                        self.output
+                            .write(Event::Trial(TrialEvent::Finished { trial_id }))?;
                         self.trial_temp_dirs.remove(&trial_id);
                     }
                     Action::WaitObservations => {
@@ -222,11 +190,14 @@ impl<W: Write> StudyRunner<W> {
                     let trial_id = obs.trial_id;
                     let elapsed = self.start_time.elapsed();
                     self.output
-                        .write(Event::Obs(ObservationEvent::Finished { obs, elapsed }))?;
+                        .write(Event::Observation(ObservationEvent::Finished {
+                            obs,
+                            elapsed,
+                        }))?;
                     self.obs_temp_dirs.remove(&obs_id);
                     if trial_finished {
                         self.output
-                            .write(Event::Trial(TrialEvent::Finished { trial_id, elapsed }))?;
+                            .write(Event::Trial(TrialEvent::Finished { trial_id }))?;
                         self.trial_temp_dirs.remove(&trial_id);
                     }
                     did_nothing = false;
@@ -244,7 +215,7 @@ impl<W: Write> StudyRunner<W> {
 
     fn is_study_finished(&self) -> bool {
         self.opt
-            .runs
+            .repeat
             .map_or(false, |n| self.finished_observations >= n)
     }
 
@@ -353,6 +324,113 @@ impl<W: Write> StudyRunner<W> {
             req.metric_name,
             MetricInstance::new(req.metric_type, req.metric_value),
         );
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct StudyLoader<'a, W> {
+    study: &'a mut StudyRunner<W>,
+    trial_id_mapping: HashMap<TrialId, TrialId>,
+    obs_id_mapping: HashMap<ObservationId, ObservationId>,
+    last_elapsed: Duration,
+}
+
+impl<'a, W: Write> StudyLoader<'a, W> {
+    fn new(study: &'a mut StudyRunner<W>) -> Self {
+        Self {
+            study,
+            trial_id_mapping: HashMap::new(),
+            obs_id_mapping: HashMap::new(),
+            last_elapsed: Duration::new(0, 0),
+        }
+    }
+
+    fn load<R: BufRead>(&mut self, mut reader: EventReader<R>) -> anyhow::Result<()> {
+        let mut skip = true;
+        while let Some(event) = reader.read()? {
+            if let Some(elapsed) = event.elapsed() {
+                self.last_elapsed = elapsed;
+            }
+
+            match event {
+                Event::Study(StudyEvent::Started) => {
+                    skip = true;
+                    self.study.elapsed_offset += self.last_elapsed;
+                    self.trial_id_mapping = HashMap::new();
+                    self.obs_id_mapping = HashMap::new();
+                    self.last_elapsed = Duration::new(0, 0);
+                }
+                Event::Study(StudyEvent::Defined { .. }) => {
+                    skip = false;
+                }
+                Event::Trial(event) if !skip => {
+                    self.handle_trial_event(event)?;
+                }
+                Event::Observation(event) if !skip => {
+                    self.handle_observation_event(event)?;
+                }
+                _ => {}
+            }
+        }
+        self.study.elapsed_offset += self.last_elapsed;
+
+        Ok(())
+    }
+
+    fn handle_trial_event(&mut self, event: TrialEvent) -> anyhow::Result<()> {
+        if let TrialEvent::Started {
+            trial_id: orig_trial_id,
+        } = event
+        {
+            let trial_id = self.study.next_trial_id.fetch_and_increment();
+            self.trial_id_mapping.insert(orig_trial_id, trial_id);
+            self.study.output.write(Event::trial_started(trial_id))?;
+        }
+        Ok(())
+    }
+
+    fn handle_observation_event(&mut self, event: ObservationEvent) -> anyhow::Result<()> {
+        match event {
+            ObservationEvent::Started {
+                obs_id: orig_obs_id,
+                trial_id: orig_trial_id,
+                elapsed,
+            } => {
+                let obs_id = self.study.next_obs_id.fetch_and_increment();
+                let trial_id = *self
+                    .trial_id_mapping
+                    .get(&orig_trial_id)
+                    .ok_or_else(|| anyhow::anyhow!("unknown trial id {:?}", orig_trial_id))?;
+                self.obs_id_mapping.insert(orig_obs_id, obs_id);
+                self.study.output.write(Event::observation_started(
+                    obs_id,
+                    trial_id,
+                    self.study.elapsed_offset + elapsed,
+                ))?;
+            }
+            ObservationEvent::Finished { mut obs, elapsed } => {
+                let obs_id = *self
+                    .obs_id_mapping
+                    .get(&obs.id)
+                    .ok_or_else(|| anyhow::anyhow!("unknown observation id {:?}", obs.id))?;
+                let trial_id = *self
+                    .trial_id_mapping
+                    .get(&obs.trial_id)
+                    .ok_or_else(|| anyhow::anyhow!("unknown trial id {:?}", obs.trial_id))?;
+                obs.id = obs_id;
+                obs.trial_id = trial_id;
+
+                let elapsed = self.study.elapsed_offset + elapsed;
+                let trial_finished = self.study.tuner.tell(&obs)?;
+                self.study
+                    .output
+                    .write(Event::observation_finished(obs, elapsed))?;
+                if trial_finished {
+                    self.study.output.write(Event::trial_finished(trial_id))?;
+                }
+            }
+        }
         Ok(())
     }
 }

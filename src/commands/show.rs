@@ -1,5 +1,5 @@
 use crate::event::{Event, EventOrLine, EventReader, ObservationEvent, StudyEvent};
-use crate::runner::StudyRunnerOpt;
+use crate::study::StudySpec;
 use crate::trial::CompactObservation;
 use anyhow::Context;
 use std::collections::BTreeMap;
@@ -34,13 +34,13 @@ impl ShowOpt {
         let mut best = BTreeMap::new();
 
         fn output(
-            study: &StudyRunnerOpt,
+            study: &StudySpec,
             best_per_metric: &BTreeMap<String, CompactObservation>,
         ) -> anyhow::Result<()> {
             let json = serde_json::json!({
                 "study": {
-                    "name": study.study_name,
-                    "instance": study.study_instance
+                    "name": study.name,
+                    "id": study.id.to_string()
                 },
                 "best": best_per_metric
             });
@@ -52,18 +52,20 @@ impl ShowOpt {
         let mut skip = true;
         while let Some(event) = reader.read_event_or_line()? {
             match event {
-                EventOrLine::Event(Event::Study(StudyEvent::Defined { opt })) => {
+                EventOrLine::Event(Event::Study(StudyEvent::Defined { spec })) => {
                     if let Some(study) = current_study.take() {
                         output(&study, &best)?;
                     }
-                    current_study = Some(opt);
+                    current_study = Some(spec);
                     best = BTreeMap::new();
                     skip = false;
                 }
                 EventOrLine::Event(Event::Study(StudyEvent::Started)) => {
                     skip = true;
                 }
-                EventOrLine::Event(Event::Obs(ObservationEvent::Finished { obs, .. })) => {
+                EventOrLine::Event(Event::Observation(ObservationEvent::Finished {
+                    obs, ..
+                })) => {
                     if skip {
                         continue;
                     }

@@ -33,7 +33,6 @@ pub enum MetricType {
     Minimize,
     Maximize,
     Record,
-    Judge,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +51,6 @@ impl MetricInstance {
             MetricType::Minimize => self.value < other,
             MetricType::Maximize => self.value > other,
             MetricType::Record => false,
-            MetricType::Judge => false,
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::param::{NumParamType, ParamName, ParamType, ParamValue, StrParamType};
 use crate::rng::ArcRng;
 use crate::trial::{Observation, TrialId};
-use crate::tuners::Optimize;
+use crate::tuners::Tune;
 use crate::types::FiniteF64;
 use rand::distributions::Distribution;
 use rand::seq::SliceRandom;
@@ -35,7 +35,7 @@ impl RandomTuner {
     }
 }
 
-impl Optimize for RandomTuner {
+impl Tune for RandomTuner {
     fn ask(
         &mut self,
         _obs: &Observation,

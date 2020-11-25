@@ -3,7 +3,7 @@ use crate::trial::{Observation, TrialId};
 
 pub mod random;
 
-pub trait Optimize {
+pub trait Tune {
     fn ask(
         &mut self,
         obs: &Observation,
@@ -13,7 +13,6 @@ pub trait Optimize {
 
     fn tell(&mut self, obs: &Observation) -> anyhow::Result<bool>;
 
-    // TODO: rename
     fn next_action(&mut self) -> anyhow::Result<Action> {
         Ok(Action::CreateTrial)
     }
@@ -54,7 +53,7 @@ pub enum Tuner {
     Random(self::random::RandomTuner),
 }
 
-impl Optimize for Tuner {
+impl Tune for Tuner {
     fn ask(
         &mut self,
         obs: &Observation,

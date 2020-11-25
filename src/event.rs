@@ -1,4 +1,4 @@
-use crate::runner::StudyRunnerOpt;
+use crate::study::StudySpec;
 use crate::trial::{Observation, ObservationId, TrialId};
 use std::io::{BufRead, Write};
 use std::time::Duration;
@@ -8,7 +8,41 @@ use std::time::Duration;
 pub enum Event {
     Study(StudyEvent),
     Trial(TrialEvent),
-    Obs(ObservationEvent),
+    Observation(ObservationEvent),
+}
+
+impl Event {
+    pub fn elapsed(&self) -> Option<Duration> {
+        match self {
+            Self::Observation(ObservationEvent::Started { elapsed, .. })
+            | Self::Observation(ObservationEvent::Finished { elapsed, .. }) => Some(*elapsed),
+            _ => None,
+        }
+    }
+
+    pub fn trial_started(trial_id: TrialId) -> Event {
+        Self::Trial(TrialEvent::Started { trial_id })
+    }
+
+    pub fn trial_finished(trial_id: TrialId) -> Event {
+        Self::Trial(TrialEvent::Finished { trial_id })
+    }
+
+    pub fn observation_started(
+        obs_id: ObservationId,
+        trial_id: TrialId,
+        elapsed: Duration,
+    ) -> Event {
+        Self::Observation(ObservationEvent::Started {
+            obs_id,
+            trial_id,
+            elapsed,
+        })
+    }
+
+    pub fn observation_finished(obs: Observation, elapsed: Duration) -> Event {
+        Self::Observation(ObservationEvent::Finished { obs, elapsed })
+    }
 }
 
 #[derive(Debug)]
@@ -20,25 +54,18 @@ pub enum EventOrLine {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StudyEvent {
-    Started, // TODO: resume_info
+    Started,
     Defined {
         #[serde(flatten)]
-        opt: StudyRunnerOpt,
+        spec: StudySpec,
     },
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrialEvent {
-    Started {
-        trial_id: TrialId,
-        // TODO: study_instance(?)
-        elapsed: Duration, // TODO: ElapsedSeconds
-    },
-    Finished {
-        trial_id: TrialId,
-        elapsed: Duration,
-    },
+    Started { trial_id: TrialId },
+    Finished { trial_id: TrialId },
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -49,6 +76,7 @@ pub enum ObservationEvent {
         trial_id: TrialId,
         elapsed: Duration,
     },
+    // TODO: Queued
     Finished {
         #[serde(flatten)]
         obs: Observation,
@@ -82,6 +110,8 @@ impl<W: Write> EventWriter<W> {
         self.file = Some(std::fs::File::create(path)?);
         Ok(())
     }
+
+    // TODO: flush
 }
 
 #[derive(Debug)]

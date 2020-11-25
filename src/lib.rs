@@ -8,6 +8,7 @@ pub mod param;
 pub mod rng;
 pub mod rpc;
 pub mod runner;
+pub mod study;
 pub mod trial;
 pub mod tuners;
 pub mod types;

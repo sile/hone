@@ -20,11 +20,6 @@ pub enum TellOpt {
         name: String,
         value: f64,
     },
-    Judge {
-        #[structopt(long, short = "n", default_value = "judge")]
-        name: String,
-        feasibility: f64,
-    },
 }
 
 impl TellOpt {
@@ -34,7 +29,6 @@ impl TellOpt {
             Self::Minimize { name, value } => (name, MetricType::Minimize, value),
             Self::Maximize { name, value } => (name, MetricType::Maximize, value),
             Self::Record { name, value } => (name, MetricType::Record, value),
-            Self::Judge { name, feasibility } => (name, MetricType::Judge, feasibility),
         };
         let req = rpc::TellReq {
             observation_id,
