@@ -80,11 +80,10 @@ impl<'a, W: Write> StudyLoader<'a, W> {
                     .get(&orig_trial_id)
                     .ok_or_else(|| anyhow::anyhow!("unknown trial id {:?}", orig_trial_id))?;
                 self.obs_id_mapping.insert(orig_obs_id, obs_id);
-                self.study.output.write(Event::observation_started(
-                    obs_id,
-                    trial_id,
-                    self.study.elapsed_offset + elapsed,
-                ))?;
+                let elapsed = self.study.elapsed_offset + elapsed;
+                self.study
+                    .output
+                    .write(Event::observation_started(obs_id, trial_id, elapsed))?;
             }
             ObservationEvent::Finished { mut obs, elapsed } => {
                 let obs_id = *self

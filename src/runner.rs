@@ -1,55 +1,20 @@
-use crate::envvar;
-use crate::event::{Event, EventReader, EventWriter, ObservationEvent, StudyEvent, TrialEvent};
+use self::command::CommandRunner;
+use crate::event::{Event, EventReader, EventWriter};
 use crate::metric::MetricInstance;
 use crate::param::{ParamInstance, ParamValue};
 use crate::rpc;
-use crate::study::{CommandSpec, StudySpec};
+use crate::study::StudySpec;
 use crate::trial::{Observation, ObservationId, TrialId};
 use crate::tuners::{Action, Tune, Tuner};
 use crate::types::Scope;
-use anyhow::Context;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
+mod command;
 mod loader;
-
-pub fn spawn(
-    spec: &CommandSpec,
-    observation_id: ObservationId,
-    rpc_server_addr: std::net::SocketAddr,
-) -> anyhow::Result<CommandRunner> {
-    let mut command = Command::new(&spec.path);
-    // TODO: trial_id and study_instance_id envs
-    command
-        .args(&spec.args)
-        .env(envvar::KEY_SERVER_ADDR, rpc_server_addr.to_string())
-        .env(envvar::KEY_OBSERVATION_ID, observation_id.get().to_string())
-        .stdin(Stdio::null());
-    let proc = command
-        .spawn()
-        .with_context(|| format!("Failed to spawn command: {:?}", spec.path))?;
-    Ok(CommandRunner {
-        observation_id,
-        proc,
-    })
-}
-
-#[derive(Debug)]
-pub struct CommandRunner {
-    observation_id: ObservationId,
-    proc: Child,
-}
-
-impl CommandRunner {
-    pub fn try_wait(&mut self) -> anyhow::Result<Option<ExitStatus>> {
-        let exit_status = self.proc.try_wait()?;
-        Ok(exit_status)
-    }
-}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StudyRunnerOpt {
@@ -83,10 +48,8 @@ impl<W: Write> StudyRunner<W> {
         let (rpc_server_addr, rpc_channel) = rpc::spawn_rpc_server()?;
 
         let mut output = EventWriter::new(output);
-        output.write(Event::Study(StudyEvent::Started))?;
-        output.write(Event::Study(StudyEvent::Defined {
-            spec: opt.study.clone(),
-        }))?;
+        output.write(Event::study_started())?;
+        output.write(Event::study_defined(opt.study.clone()))?;
 
         Ok(Self {
             output,
@@ -108,15 +71,14 @@ impl<W: Write> StudyRunner<W> {
     }
 
     fn start_observation(&mut self, obs: Observation) -> anyhow::Result<()> {
-        self.output
-            .write(Event::Observation(ObservationEvent::Started {
-                obs_id: obs.id,
-                trial_id: obs.trial_id,
-                elapsed: self.start_time.elapsed(),
-            }))?;
-        self.runnings.push(spawn(
-            &self.opt.study.command,
+        self.output.write(Event::observation_started(
             obs.id,
+            obs.trial_id,
+            self.elapsed_offset + self.start_time.elapsed(),
+        ))?;
+        self.runnings.push(CommandRunner::spawn(
+            &self.opt.study,
+            &obs,
             self.rpc_server_addr,
         )?);
         self.observations.insert(obs.id, obs);
@@ -142,9 +104,7 @@ impl<W: Write> StudyRunner<W> {
                             self.next_obs_id.fetch_and_increment(),
                             self.next_trial_id.fetch_and_increment(),
                         );
-                        self.output.write(Event::Trial(TrialEvent::Started {
-                            trial_id: obs.trial_id,
-                        }))?;
+                        self.output.write(Event::trial_started(obs.trial_id))?;
                         self.start_observation(obs)?;
                         did_nothing = false;
                         break;
@@ -157,8 +117,7 @@ impl<W: Write> StudyRunner<W> {
                         break;
                     }
                     Action::FinishTrial { trial_id } => {
-                        self.output
-                            .write(Event::Trial(TrialEvent::Finished { trial_id }))?;
+                        self.output.write(Event::trial_finished(trial_id))?;
                         self.trial_temp_dirs.remove(&trial_id);
                     }
                     Action::WaitObservations => {
@@ -181,10 +140,7 @@ impl<W: Write> StudyRunner<W> {
                 if let Some(status) = self.runnings[i].try_wait()? {
                     let finished = self.runnings.swap_remove(i);
                     self.finished_observations += 1;
-                    let mut obs = self
-                        .observations
-                        .remove(&finished.observation_id)
-                        .expect("bug");
+                    let mut obs = self.observations.remove(&finished.obs_id()).expect("bug");
                     obs.exit_status = status.code();
                     self.tell_finished_obs(obs, self.start_time.elapsed())?;
                     did_nothing = false;

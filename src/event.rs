@@ -20,6 +20,14 @@ impl Event {
         }
     }
 
+    pub fn study_started() -> Event {
+        Self::Study(StudyEvent::Started)
+    }
+
+    pub fn study_defined(spec: StudySpec) -> Event {
+        Self::Study(StudyEvent::Defined { spec })
+    }
+
     pub fn trial_started(trial_id: TrialId) -> Event {
         Self::Trial(TrialEvent::Started { trial_id })
     }
