@@ -1,6 +1,7 @@
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "Vec<T>")]
@@ -146,5 +147,37 @@ impl std::str::FromStr for Scope {
             "study" => Ok(Self::Study),
             _ => anyhow::bail!("unknown scope {:?}", s),
         }
+    }
+}
+
+/// Elapsed seconds.
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+pub struct ElapsedSeconds(f64);
+
+impl ElapsedSeconds {
+    /// Makes a new `ElapsedSeconds` instance.
+    pub fn new(seconds: f64) -> Self {
+        Self(seconds)
+    }
+
+    /// Makes a `ElapsedSeconds` instance that represents the zero elapsed seconds.
+    pub const fn zero() -> Self {
+        Self(0.0)
+    }
+
+    /// Returns the elapsed seconds value.
+    pub const fn get(self) -> f64 {
+        self.0
+    }
+
+    /// Converts the elapsed seconds to `Duration`.
+    pub fn to_duration(self) -> Duration {
+        Duration::from_secs_f64(self.0)
+    }
+}
+
+impl From<Duration> for ElapsedSeconds {
+    fn from(f: Duration) -> Self {
+        Self(f.as_secs_f64())
     }
 }

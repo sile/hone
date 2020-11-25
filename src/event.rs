@@ -1,5 +1,6 @@
 use crate::study::StudySpec;
 use crate::trial::{Observation, ObservationId, TrialId};
+use crate::types::ElapsedSeconds;
 use std::io::{BufRead, Write};
 use std::time::Duration;
 
@@ -15,7 +16,9 @@ impl Event {
     pub fn elapsed(&self) -> Option<Duration> {
         match self {
             Self::Observation(ObservationEvent::Started { elapsed, .. })
-            | Self::Observation(ObservationEvent::Finished { elapsed, .. }) => Some(*elapsed),
+            | Self::Observation(ObservationEvent::Finished { elapsed, .. }) => {
+                Some(elapsed.to_duration())
+            }
             _ => None,
         }
     }
@@ -44,12 +47,15 @@ impl Event {
         Self::Observation(ObservationEvent::Started {
             obs_id,
             trial_id,
-            elapsed,
+            elapsed: elapsed.into(),
         })
     }
 
     pub fn observation_finished(obs: Observation, elapsed: Duration) -> Event {
-        Self::Observation(ObservationEvent::Finished { obs, elapsed })
+        Self::Observation(ObservationEvent::Finished {
+            obs,
+            elapsed: elapsed.into(),
+        })
     }
 }
 
@@ -82,44 +88,32 @@ pub enum ObservationEvent {
     Started {
         obs_id: ObservationId,
         trial_id: TrialId,
-        elapsed: Duration,
+        elapsed: ElapsedSeconds,
     },
     // TODO: Queued
     Finished {
         #[serde(flatten)]
         obs: Observation,
-        elapsed: Duration,
+        elapsed: ElapsedSeconds,
     },
 }
 
 #[derive(Debug)]
 pub struct EventWriter<W> {
     writer: W,
-    file: Option<std::fs::File>,
 }
 
 impl<W: Write> EventWriter<W> {
     pub fn new(writer: W) -> Self {
-        Self { writer, file: None }
+        Self { writer }
     }
 
     pub fn write(&mut self, event: Event) -> anyhow::Result<()> {
         serde_json::to_writer(&mut self.writer, &event)?;
         writeln!(&mut self.writer)?;
-        if let Some(mut f) = self.file.as_mut() {
-            serde_json::to_writer(&mut f, &event)?;
-            writeln!(&mut f)?;
-        }
+        self.writer.flush()?;
         Ok(())
     }
-
-    // TODO: remove
-    pub fn add_file<P: AsRef<std::path::Path>>(&mut self, path: P) -> anyhow::Result<()> {
-        self.file = Some(std::fs::File::create(path)?);
-        Ok(())
-    }
-
-    // TODO: flush
 }
 
 #[derive(Debug)]

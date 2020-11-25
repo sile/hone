@@ -80,7 +80,7 @@ impl<'a, W: Write> StudyLoader<'a, W> {
                     .get(&orig_trial_id)
                     .ok_or_else(|| anyhow::anyhow!("unknown trial id {:?}", orig_trial_id))?;
                 self.obs_id_mapping.insert(orig_obs_id, obs_id);
-                let elapsed = self.study.elapsed_offset + elapsed;
+                let elapsed = self.study.elapsed_offset + elapsed.to_duration();
                 self.study
                     .output
                     .write(Event::observation_started(obs_id, trial_id, elapsed))?;
@@ -96,7 +96,7 @@ impl<'a, W: Write> StudyLoader<'a, W> {
                     .ok_or_else(|| anyhow::anyhow!("unknown trial id {:?}", obs.trial_id))?;
                 obs.id = obs_id;
                 obs.trial_id = trial_id;
-                self.study.tell_finished_obs(obs, elapsed)?;
+                self.study.tell_finished_obs(obs, elapsed.to_duration())?;
             }
         }
         Ok(())
