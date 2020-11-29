@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::time::Duration;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "Vec<T>")]
 pub struct NonEmptyVec<T>(Vec<T>);
 
@@ -32,7 +32,7 @@ struct UncheckedInclusiveRange {
     max: f64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "UncheckedInclusiveRange")]
 pub struct InclusiveRange {
     min: FiniteF64,

@@ -81,7 +81,7 @@ impl Tune for RandomTuner {
         Ok(())
     }
 
-    fn next_action(&mut self) -> anyhow::Result<Action> {
-        Ok(self.actions.next())
+    fn next_action(&mut self) -> Option<Action> {
+        self.actions.next()
     }
 }

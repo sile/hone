@@ -78,8 +78,8 @@ impl<W: Write> StudyRunner<W> {
             did_nothing = true;
 
             while self.runnings.len() < self.opt.workers.get() && !self.terminating {
-                let action = self.tuner.next_action()?;
-                let waiting = matches!(action, Action::WaitObservations);
+                let action = self.tuner.next_action();
+                let waiting = matches!(action, Some(Action::WaitObservations));
                 self.handle_action(action)?;
                 if waiting {
                     break;
@@ -151,9 +151,9 @@ impl<W: Write> StudyRunner<W> {
         Ok(())
     }
 
-    fn handle_action(&mut self, action: Action) -> anyhow::Result<()> {
+    fn handle_action(&mut self, action: Option<Action>) -> anyhow::Result<()> {
         match action {
-            Action::CreateTrial => {
+            None => {
                 let obs = Observation::new(
                     self.next_obs_id.fetch_and_increment(),
                     self.next_trial_id.fetch_and_increment(),
@@ -161,15 +161,15 @@ impl<W: Write> StudyRunner<W> {
                 self.start_trial(obs.trial_id)?;
                 self.start_obs(obs)?;
             }
-            Action::ResumeTrial { trial_id } => {
+            Some(Action::ResumeTrial { trial_id }) => {
                 let obs = Observation::new(self.next_obs_id.fetch_and_increment(), trial_id);
                 self.start_obs(obs)?;
             }
-            Action::FinishTrial { trial_id } => {
+            Some(Action::FinishTrial { trial_id }) => {
                 self.finish_trial(trial_id)?;
             }
-            Action::WaitObservations => {}
-            Action::QuitOptimization => {
+            Some(Action::WaitObservations) => {}
+            Some(Action::QuitOptimization) => {
                 self.terminating = true;
                 for worker in &mut self.runnings {
                     worker.kill()?;

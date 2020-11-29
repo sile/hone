@@ -14,7 +14,7 @@ impl ParamName {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ParamInstance {
     pub ty: ParamType,
     pub value: ParamValue,
@@ -38,21 +38,21 @@ impl ParamInstance {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "snake_case")]
 pub enum ParamType {
     Str(StrParamType),
     Num(NumParamType),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StrParamType {
     Categorical(CategoricalParamType),
     Ordinal(OrdinalParamType),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CategoricalParamType {
     choices: NonEmptyVec<String>,
@@ -70,7 +70,7 @@ impl CategoricalParamType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct OrdinalParamType {
     choices: NonEmptyVec<String>,
@@ -88,7 +88,7 @@ impl OrdinalParamType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NumParamType {
     Continous(ContinousParamType),
@@ -97,7 +97,7 @@ pub enum NumParamType {
     Fidelity(FidelityParamType),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")] // TOOD: try_from UncheckedContinousParamType
 pub struct ContinousParamType {
     range: InclusiveRange,
@@ -122,7 +122,7 @@ impl ContinousParamType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct NormalParamType {
     mean: FiniteF64,
@@ -146,7 +146,7 @@ impl NormalParamType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct DiscreteParamType {
     range: InclusiveRange,
@@ -177,7 +177,7 @@ impl DiscreteParamType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct FidelityParamType {
     range: InclusiveRange,
@@ -206,7 +206,7 @@ impl FidelityParamType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "snake_case")]
 pub enum ParamValue {
     Str(String),

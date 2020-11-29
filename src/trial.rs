@@ -65,6 +65,10 @@ impl Observation {
         }
     }
 
+    pub fn is_succeeded(&self) -> bool {
+        self.exit_status == Some(0)
+    }
+
     pub fn is_max_fidelity(&self) -> bool {
         self.exit_status == Some(0)
             && self

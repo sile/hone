@@ -3,6 +3,7 @@ use crate::trial::{Observation, TrialId};
 use std::collections::VecDeque;
 
 pub mod random;
+pub mod retry;
 
 pub trait Tune {
     fn ask(
@@ -14,12 +15,11 @@ pub trait Tune {
 
     fn tell(&mut self, obs: &Observation) -> anyhow::Result<()>;
 
-    fn next_action(&mut self) -> anyhow::Result<Action>;
+    fn next_action(&mut self) -> Option<Action>;
 }
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    CreateTrial,
     ResumeTrial { trial_id: TrialId },
     FinishTrial { trial_id: TrialId },
     WaitObservations,
@@ -27,6 +27,10 @@ pub enum Action {
 }
 
 impl Action {
+    pub const fn resume_trial(trial_id: TrialId) -> Self {
+        Self::ResumeTrial { trial_id }
+    }
+
     pub const fn finish_trial(trial_id: TrialId) -> Self {
         Self::FinishTrial { trial_id }
     }
@@ -44,8 +48,8 @@ impl ActionQueue {
         self.0.push_back(action);
     }
 
-    pub fn next(&mut self) -> Action {
-        self.0.pop_front().unwrap_or_else(|| Action::CreateTrial)
+    pub fn next(&mut self) -> Option<Action> {
+        self.0.pop_front()
     }
 }
 
@@ -78,19 +82,20 @@ pub struct TunerSpec {
     #[structopt(long, default_value = "0")]
     retry: usize,
 
-    // TODO: RetryTuner, AverageTuner, HyperbandTuner, TpeTuner
-    #[structopt(flatten)]
+    // TODO: AverageTuner, HyperbandTuner, TpeTuner
+    #[structopt(subcommand)]
     #[serde(flatten)]
-    inner: TunerSpecInner,
+    inner: Option<TunerSpecInner>,
 }
 
 impl TunerSpec {
     pub fn build(&self) -> anyhow::Result<Tuner> {
-        if self.retry == 0 {
-            self.inner.build()
-        } else {
-            todo!()
+        let default_tuner = TunerSpecInner::Random(self::random::RandomTunerSpec::default());
+        let mut tuner = self.inner.as_ref().unwrap_or(&default_tuner).build()?;
+        if self.retry > 0 {
+            tuner = Tuner::new(self::retry::RetryTuner::new(tuner, self.retry));
         }
+        Ok(tuner)
     }
 }
 
@@ -119,7 +124,7 @@ impl Tune for Tuner {
         self.0.tell(obs)
     }
 
-    fn next_action(&mut self) -> anyhow::Result<Action> {
+    fn next_action(&mut self) -> Option<Action> {
         self.0.next_action()
     }
 }
