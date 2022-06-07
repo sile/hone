@@ -29,5 +29,5 @@ slog-term = "2"
 structopt = "0.3"
 tempfile = "3"
 thiserror = "1"
-tpe = "0.1"
+tpe = "0.2"
 uuid = { version="0.8", features=["serde", "v4"] }
