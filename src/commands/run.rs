@@ -7,27 +7,25 @@ use anyhow::Context;
 use std::io::{BufReader, Write};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, clap::Args)]
 pub struct RunOpt {
-    #[structopt(long = "name")]
+    #[clap(long = "name")]
     pub study_name: Option<String>,
 
-    #[structopt(long)]
+    #[clap(long)]
     pub study_attrs: Vec<Attr>,
 
-    #[structopt(long, default_value = "1")]
+    #[clap(long, default_value = "1")]
     pub workers: NonZeroUsize,
 
-    #[structopt(long, short = "n")]
+    #[clap(long, short = 'n')]
     pub repeat: Option<usize>,
 
-    #[structopt(long)]
+    #[clap(long)]
     pub load: Vec<PathBuf>,
 
-    #[structopt(long, parse(try_from_str = crate::json::parse_json))]
+    #[clap(long)]
     pub tuner: Option<TunerSpec>,
 
     pub command: PathBuf,

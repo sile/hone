@@ -7,9 +7,9 @@ use rand::distributions::Distribution;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
-#[derive(Debug, Clone, Default, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, clap::Args, serde::Serialize, serde::Deserialize)]
 pub struct RandomTunerSpec {
-    #[structopt(long)]
+    #[clap(long)]
     pub seed: Option<RngSeed>,
 }
 

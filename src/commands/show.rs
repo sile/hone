@@ -3,15 +3,13 @@ use crate::study::StudySpec;
 use crate::trial::CompactObservation;
 use std::collections::BTreeMap;
 
-#[derive(Debug, structopt::StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, clap::Subcommand)]
 pub enum ShowOpt {
     Best(BestOpt),
     // ParetFront, Trial, Observation
 }
 
-#[derive(Debug, structopt::StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, clap::Args)]
 pub struct BestOpt {}
 
 impl ShowOpt {

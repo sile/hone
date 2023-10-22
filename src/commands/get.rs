@@ -2,18 +2,17 @@ use crate::envvar;
 use crate::rpc;
 use crate::types::Scope;
 
-#[derive(Debug, structopt::StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, clap::Subcommand)]
 pub enum GetOpt {
     Id {
-        #[structopt(long, short="s", default_value= Scope::CHOICES[0], possible_values = Scope::CHOICES)]
+        #[clap(long, short='s', default_value= Scope::CHOICES[0])]
         scope: Scope,
     },
     Tempdir {
-        #[structopt(long)]
+        #[clap(long)]
         parent: Option<std::path::PathBuf>,
 
-        #[structopt(long, short="s", default_value= Scope::CHOICES[0], possible_values = Scope::CHOICES)]
+        #[clap(long, short='s', default_value= Scope::CHOICES[0])]
         scope: Scope,
     },
 }

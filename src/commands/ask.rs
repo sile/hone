@@ -6,15 +6,14 @@ use crate::param::{
 use crate::rpc;
 use anyhow::Context;
 
-#[derive(Debug, structopt::StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, clap::Args)]
 pub struct AskOpt {
     pub param_name: String,
 
-    #[structopt(long, short = "l")]
+    #[clap(long, short = 'l')]
     pub long_option: bool,
 
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     pub param_spec: ParamSpec,
 }
 
@@ -44,23 +43,22 @@ impl AskOpt {
     }
 }
 
-#[derive(Debug, structopt::StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, clap::Subcommand)]
 pub enum ParamSpec {
     Bool,
     Choice {
         choices: Vec<String>,
-        #[structopt(long)]
+        #[clap(long)]
         ordinal: bool,
     },
     Range {
         min: f64,
         max: f64,
-        #[structopt(long)]
+        #[clap(long)]
         ln: bool,
-        #[structopt(long)]
+        #[clap(long)]
         step: Option<f64>,
-        #[structopt(long)]
+        #[clap(long)]
         fidelity: bool,
     },
     Normal {

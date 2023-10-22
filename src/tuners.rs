@@ -53,8 +53,7 @@ impl ActionQueue {
     }
 }
 
-#[derive(Debug, Clone, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, Clone, clap::Subcommand, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum TunerSpecInner {
     // TODO:  HyperbandTuner, TpeTuner
@@ -75,15 +74,14 @@ impl Default for TunerSpecInner {
     }
 }
 
-#[derive(Debug, Default, Clone, structopt::StructOpt, serde::Serialize, serde::Deserialize)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, Default, Clone, clap::Args, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct TunerSpec {
-    #[structopt(long, default_value = "0")]
+    #[clap(long, default_value = "0")]
     retry: usize,
 
     // TODO: AverageTuner, HyperbandTuner, TpeTuner
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     #[serde(flatten)]
     inner: Option<TunerSpecInner>,
 }
@@ -96,6 +94,14 @@ impl TunerSpec {
             tuner = Tuner::new(self::retry::RetryTuner::new(tuner, self.retry));
         }
         Ok(tuner)
+    }
+}
+
+impl std::str::FromStr for TunerSpec {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        crate::json::parse_json(s)
     }
 }
 

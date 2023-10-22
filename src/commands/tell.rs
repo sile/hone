@@ -2,21 +2,20 @@ use crate::envvar;
 use crate::metric::{MetricName, MetricType, MetricValue};
 use crate::rpc;
 
-#[derive(Debug, structopt::StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, clap::Subcommand)]
 pub enum TellOpt {
     Minimize {
-        #[structopt(long, short = "n", default_value = "objective value")]
+        #[clap(long, short = 'n', default_value = "objective value")]
         name: String,
         value: f64,
     },
     Maximize {
-        #[structopt(long, short = "n", default_value = "objective value")]
+        #[clap(long, short = 'n', default_value = "objective value")]
         name: String,
         value: f64,
     },
     Record {
-        #[structopt(long, short = "n")]
+        #[clap(long, short = 'n')]
         name: String,
         value: f64,
     },

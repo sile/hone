@@ -1,12 +1,14 @@
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(StructOpt, Debug)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Parser)]
 enum Opt {
     Ask(hone::commands::ask::AskOpt),
+    #[clap(subcommand)]
     Get(hone::commands::get::GetOpt),
     Run(hone::commands::run::RunOpt),
+    #[clap(subcommand)]
     Show(hone::commands::show::ShowOpt),
+    #[clap(subcommand)]
     Tell(hone::commands::tell::TellOpt),
     Tuner(hone::commands::tuner::TunerOpt),
 }
@@ -14,7 +16,7 @@ enum Opt {
 fn main() -> anyhow::Result<()> {
     hone::rpc::init();
 
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
     match opt {
         Opt::Ask(opt) => {
             let value = opt.ask()?;

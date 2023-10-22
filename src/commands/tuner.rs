@@ -1,7 +1,7 @@
 use crate::tuners::TunerSpec;
 
-#[derive(Debug, structopt::StructOpt)]
+#[derive(Debug, clap::Args)]
 pub struct TunerOpt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub spec: TunerSpec,
 }
